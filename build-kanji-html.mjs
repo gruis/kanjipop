@@ -20,7 +20,7 @@
 //   cd ..
 //
 // Usage:
-//   node build-kanji-html.mjs 語 学 読
+//   node build-kanji-html.mjs 語 学 読 面積
 //   node build-kanji-html.mjs --from-text "（paste text here）"
 //
 // Output:
@@ -37,6 +37,7 @@ import JishoAPI from "unofficial-jisho-api";
 // globalThis.fetch = fetch;
 
 const jisho = new JishoAPI();
+const KANJI_RE = /[\u3400-\u4DBF\u4E00-\u9FFF]/;
 
 function esc(s = "") {
   return String(s)
@@ -51,6 +52,20 @@ function uniqKanjiFromText(text) {
   // CJK Unified Ideographs + Extension A (basic coverage)
   const matches = text.match(/[\u3400-\u4DBF\u4E00-\u9FFF]/g) || [];
   return [...new Set(matches)];
+}
+
+function hasKanji(text) {
+  return KANJI_RE.test(text);
+}
+
+function normalizeReading(reading) {
+  return String(reading || "").replaceAll(".", "");
+}
+
+function pickPrimaryKanjiReading(kunyomi = [], onyomi = []) {
+  if (kunyomi.length > 0) return normalizeReading(kunyomi[0]);
+  if (onyomi.length > 0) return normalizeReading(onyomi[0]);
+  return "";
 }
 
 function kanjiToCodepointHex(k) {
@@ -102,74 +117,143 @@ function normalizeExamples(exResults, limit = 3) {
   }));
 }
 
+function pickPhraseEntry(phrase, phraseResult) {
+  const data = phraseResult?.data || [];
+  let best = data.find((entry) =>
+    (entry.japanese || []).some((j) => j.word === phrase)
+  );
+  if (!best) best = data[0];
+  if (!best) return null;
+
+  const jpExact = (best.japanese || []).find((j) => j.word === phrase);
+  const jp = jpExact || (best.japanese || [])[0] || {};
+
+  const meaning = (best.senses || [])[0]?.english_definitions?.join("; ") || "";
+  const jlpt = (best.jlpt || [])[0] || "";
+  const parts = (best.senses || [])[0]?.parts_of_speech || [];
+
+  return {
+    word: jp.word || phrase,
+    reading: jp.reading || "",
+    meaning,
+    jlpt,
+    parts,
+  };
+}
+
+function buildMaskedExampleText(exampleKanji, term, termReading) {
+  if (!exampleKanji) return "";
+  if (!term || !termReading) return exampleKanji;
+  return exampleKanji.split(term).join(termReading);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) {
     console.error(
-      "Usage:\n  node build-kanji-html.mjs 語 学 読\n  node build-kanji-html.mjs --from-text \"...your text...\""
+      "Usage:\n  node build-kanji-html.mjs 語 学 読 面積\n  node build-kanji-html.mjs --from-text \"...your text...\""
     );
     process.exit(1);
   }
 
-  let kanjiList = [];
+  let termList = [];
   if (args[0] === "--from-text") {
     const text = args.slice(1).join(" ");
-    kanjiList = uniqKanjiFromText(text);
+    termList = uniqKanjiFromText(text);
   } else {
-    kanjiList = args;
+    termList = args;
   }
 
-  // Basic validation: only keep single-character kanji entries
-  kanjiList = kanjiList
-    .map((k) => String(k).trim())
-    .filter((k) => k.length > 0)
-    .filter((k) => (k.match(/[\u3400-\u4DBF\u4E00-\u9FFF]/) ? true : false))
-    .map((k) => [...k][0]); // if someone passed multi-char, take first char
+  termList = termList
+    .map((t) => String(t).trim())
+    .filter((t) => t.length > 0)
+    .filter((t) => hasKanji(t));
 
   const outDir = path.resolve("out");
   const assetsDir = path.join(outDir, "assets");
   await fs.mkdir(assetsDir, { recursive: true });
 
   const items = [];
+  const kanjiInfoCache = new Map();
 
-  for (const k of kanjiList) {
+  for (const term of termList) {
     try {
-      const info = await jisho.searchForKanji(k);
+      const isSingleKanji = term.length === 1 && hasKanji(term);
 
-      // Examples: searching by kanji char usually yields useful examples.
-      const ex = await jisho.searchForExamples(k);
-      const examples = normalizeExamples(ex, 3);
+      let info = null;
+      let phraseInfo = null;
+      let examples = [];
 
-      // Stroke order SVG: KanjiVG primary (offline + complete)
-      let localSvg = await copyKanjiVG(k, assetsDir);
-
-      // Fallback: Jisho SVG (may be missing/fragile, but worth trying)
-      if (!localSvg && info.strokeOrderSvgUri) {
-        try {
-          const svgName = `${k}_jisho.svg`;
-          const svgPath = path.join(assetsDir, svgName);
-          await download(info.strokeOrderSvgUri, svgPath);
-          localSvg = `assets/${svgName}`;
-        } catch {
-          // ignore and proceed without SVG
-        }
+      if (isSingleKanji) {
+        info = await jisho.searchForKanji(term);
+        const ex = await jisho.searchForExamples(term);
+        examples = normalizeExamples(ex, 3);
+      } else {
+        const phraseResult = await jisho.searchForPhrase(term);
+        phraseInfo = pickPhraseEntry(term, phraseResult);
+        const ex = await jisho.searchForExamples(term);
+        examples = normalizeExamples(ex, 3);
       }
 
+      const kanjiChars = [...term].filter((c) => hasKanji(c));
+      const localSvgs = [];
+
+      for (const k of kanjiChars) {
+        let localSvg = await copyKanjiVG(k, assetsDir);
+        if (!localSvg) {
+          let kInfo = null;
+          if (isSingleKanji && info?.strokeOrderSvgUri) {
+            kInfo = info;
+          } else {
+            if (kanjiInfoCache.has(k)) {
+              kInfo = kanjiInfoCache.get(k);
+            } else {
+              try {
+                kInfo = await jisho.searchForKanji(k);
+              } catch {
+                kInfo = null;
+              }
+              kanjiInfoCache.set(k, kInfo);
+            }
+          }
+
+          if (kInfo?.strokeOrderSvgUri) {
+            try {
+              const svgName = `${k}_jisho.svg`;
+              const svgPath = path.join(assetsDir, svgName);
+              await download(kInfo.strokeOrderSvgUri, svgPath);
+              localSvg = `assets/${svgName}`;
+            } catch {
+              // ignore and proceed without SVG
+            }
+          }
+        }
+        if (localSvg) localSvgs.push({ kanji: k, svg: localSvg });
+      }
+
+      const readingForMask = isSingleKanji
+        ? pickPrimaryKanjiReading(info?.kunyomi, info?.onyomi)
+        : normalizeReading(phraseInfo?.reading || "");
+
       items.push({
-        kanji: k,
-        found: info.found,
-        meaning: info.meaning,
-        kunyomi: info.kunyomi || [],
-        onyomi: info.onyomi || [],
-        strokeCount: info.strokeCount,
-        jlptLevel: info.jlptLevel,
-        taughtIn: info.taughtIn,
-        localSvg,
-        jishoUri: info.uri,
+        term,
+        isSingleKanji,
+        found: info?.found,
+        meaning: isSingleKanji ? info?.meaning : phraseInfo?.meaning,
+        kunyomi: info?.kunyomi || [],
+        onyomi: info?.onyomi || [],
+        strokeCount: info?.strokeCount,
+        jlptLevel: info?.jlptLevel || phraseInfo?.jlpt,
+        taughtIn: info?.taughtIn,
+        partsOfSpeech: phraseInfo?.parts || [],
+        localSvgs,
+        jishoUri: info?.uri || jisho.getUriForPhraseSearch(term),
         examples,
+        readingForMask,
+        phraseReading: phraseInfo?.reading || "",
       });
     } catch (err) {
-      items.push({ kanji: k, error: String(err?.message || err) });
+      items.push({ term, error: String(err?.message || err) });
     }
   }
 
@@ -198,7 +282,6 @@ async function main() {
   .ex { padding: 8px 10px; border: 1px solid #eee; border-radius: 12px; margin-top: 8px; }
   .jp { font-size: 16px; }
   .kana { color:#444; font-size: 14px; margin-top: 2px; }
-  .en { color:#222; font-size: 14px; margin-top: 4px; }
   .err { color: #b00020; font-weight: 800; }
   .src { margin-top: 10px; font-size: 13px; color:#444; }
   .src a { color: inherit; }
@@ -220,45 +303,72 @@ async function main() {
       .map((it) => {
         if (it.error) {
           return `<div class="card">
-  <div class="prompt">${esc(it.kanji)}</div>
+  <div class="prompt">${esc(it.term)}</div>
   <div class="err">Error: ${esc(it.error)}</div>
 </div>`;
         }
 
-        const readingLine = [
-          it.kunyomi?.length ? `Kun: ${it.kunyomi.join(" / ")}` : null,
-          it.onyomi?.length ? `On: ${it.onyomi.join(" / ")}` : null,
-        ]
-          .filter(Boolean)
-          .join(" • ");
+        const readingLine = it.isSingleKanji
+          ? [
+              it.kunyomi?.length ? `訓: ${it.kunyomi.join(" / ")}` : null,
+              it.onyomi?.length ? `音: ${it.onyomi.join(" / ")}` : null,
+            ]
+              .filter(Boolean)
+              .join(" ・ ")
+          : it.phraseReading
+            ? `読み: ${it.phraseReading}`
+            : "読み: (none found)";
 
         const miscLine = [
-          it.strokeCount != null ? `Strokes: ${it.strokeCount}` : null,
+          it.strokeCount != null ? `画数: ${it.strokeCount}` : null,
           it.jlptLevel ? `JLPT: ${it.jlptLevel}` : null,
-          it.taughtIn ? `Taught: ${it.taughtIn}` : null,
+          it.taughtIn ? `学年: ${it.taughtIn}` : null,
+          it.partsOfSpeech?.length ? `品詞: ${it.partsOfSpeech.join(" / ")}` : null,
         ]
           .filter(Boolean)
-          .join(" • ");
+          .join(" ・ ");
 
         const hasExamples = (it.examples || []).length > 0;
+        const maskedExamples = (it.examples || []).map((e) =>
+          buildMaskedExampleText(e.kanji, it.term, it.readingForMask)
+        );
 
         return `<div class="card">
-  <div class="prompt">${esc(readingLine || "Reading: (none found)")}</div>
+  <div class="prompt">${esc(readingLine || "読み: (none found)")}</div>
   <div class="meta">${esc(it.meaning || "")}</div>
   <div class="meta">${esc(miscLine)}</div>
+
+  ${
+    hasExamples
+      ? `<div class="examples">
+    <div class="meta" style="margin-top:10px; font-weight:800;">例文</div>
+    ${maskedExamples
+      .map(
+        (jp) => `<div class="ex">
+      <div class="jp">${esc(jp)}</div>
+    </div>`
+      )
+      .join("")}
+  </div>`
+      : `<div class="meta" style="margin-top:10px;"><em>例文なし。</em></div>`
+  }
 
   <details>
     <summary>Reveal</summary>
 
-    <div class="revealKanji">${esc(it.kanji)}</div>
+    <div class="revealKanji">${esc(it.term)}</div>
 
     ${
-      it.localSvg
+      it.localSvgs?.length
         ? `<div class="imgRow">
-      <div class="imgBox">
-        <div class="meta" style="font-weight:800;">Stroke order</div>
-        <img src="${esc(it.localSvg)}" alt="stroke order svg"/>
-      </div>
+      ${it.localSvgs
+        .map(
+          (s) => `<div class="imgBox">
+        <div class="meta" style="font-weight:800;">${esc(s.kanji)}: stroke order</div>
+        <img src="${esc(s.svg)}" alt="stroke order svg"/>
+      </div>`
+        )
+        .join("")}
     </div>`
         : `<div class="meta" style="margin-top:8px;"><em>No stroke SVG found (KanjiVG missing and Jisho fallback unavailable).</em></div>`
     }
@@ -266,18 +376,17 @@ async function main() {
     ${
       hasExamples
         ? `<div class="examples">
-      <div class="meta" style="margin-top:10px; font-weight:800;">Examples</div>
+      <div class="meta" style="margin-top:10px; font-weight:800;">例文</div>
       ${(it.examples || [])
         .map(
           (e) => `<div class="ex">
         <div class="jp">${esc(e.kanji)}</div>
         <div class="kana">${esc(e.kana)}</div>
-        <div class="en">${esc(e.english)}</div>
       </div>`
         )
         .join("")}
     </div>`
-        : `<div class="meta" style="margin-top:10px;"><em>No examples found.</em></div>`
+        : ``
     }
 
     <div class="src">Metadata/examples via <a href="${esc(

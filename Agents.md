@@ -119,7 +119,6 @@ A run is “done” when:
 - Cache Jisho responses locally to reduce repeat scraping
 
 ### Output Formats
-- Printable PDF sheet generation
 - Per-kanji individual card pages
 - Dark mode stylesheet
 
@@ -128,8 +127,5 @@ A run is “done” when:
 ## Agent Behavior Guidelines
 When acting as a coding agent in this repo:
 
-1. Prefer editing `build-kanji-html.mjs` rather than introducing new tools unless requested.
-2. Keep the script single-file unless complexity clearly requires splitting.
-3. Maintain offline-first stroke order using KanjiVG.
-4. Treat Jisho lookups as best-effort; never make the script crash if they fail.
-5. When asked for code updates, return the **entire updated file**, not diffs.
+1. Maintain offline-first stroke order using KanjiVG.
+2. Treat Jisho lookups as best-effort; never make the script crash if they fail.

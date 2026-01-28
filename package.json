@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "dev": "nuxt dev --no-fork",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -10,8 +13,15 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "bootstrap": "^5.3.3",
     "cheerio": "^1.0.0-rc.12",
+    "dexie": "^4.0.11",
     "node-fetch": "^3.3.2",
+    "ts-fsrs": "^5.2.0",
     "unofficial-jisho-api": "^2.3.4"
+  },
+  "devDependencies": {
+    "nuxt": "^3.12.4"
   }
 }
