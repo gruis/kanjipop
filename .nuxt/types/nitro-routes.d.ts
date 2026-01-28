@@ -20,8 +20,15 @@ declare module "nitropack/types" {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/kanji/examples.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/kanji/examples.post').default>>>>
     }
+    '/api/kanji/mnemonics': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/kanji/mnemonics.get').default>>>>
+    }
     '/api/ping': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/ping.get').default>>>>
+    }
+    '/api/settings/wanikani-token': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/settings/wanikani-token.get').default>>>>
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/settings/wanikani-token.post').default>>>>
     }
     '/api/word/details': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/word/details.get').default>>>>

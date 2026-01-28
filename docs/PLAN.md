@@ -2,7 +2,7 @@
 
 ## Product Direction
 - Web app only (Nuxt 3).
-- Offline-first, local database in browser.
+- Local-first: browser stores SRS/progress; device-local server DB caches content (kanji details, examples, mnemonics).
 - Sync-later ready (stable IDs, timestamps, event log style updates).
 
 ## Core Requirements
@@ -31,7 +31,11 @@
 - User can add their own example sentences.
 - Prefer personal examples option.
 
-6) Kanji Wall
+6) Mnemonics
+- Optional WaniKani mnemonics (user token, personal use only).
+- Stored in device-local DB and displayed on card backs.
+
+7) Kanji Wall
 - Grid of kanji with color by level or SRS progress.
 - Filters for deck, level, due/new/mature.
 

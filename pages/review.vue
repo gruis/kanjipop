@@ -9,10 +9,12 @@ import {
   fetchKanjiDetails,
   fetchKanjiExamples,
   fetchKanjiCompounds,
+  fetchKanjiMnemonics,
   fetchWordDetails,
   type KanjiCompound,
   type KanjiDetails,
   type KanjiExample,
+  type KanjiMnemonic,
   type WordDetails,
 } from "~/lib/services/kanjiApi";
 import { pickMaskReading } from "~/lib/services/exampleMask";
@@ -31,6 +33,7 @@ const kanjiDetails = ref<KanjiDetails | null>(null);
 const wordDetails = ref<WordDetails | null>(null);
 const examples = ref<KanjiExample[]>([]);
 const compounds = ref<KanjiCompound[]>([]);
+const mnemonics = ref<KanjiMnemonic[]>([]);
 
 const levelOptions = flattenLevels();
 const selectedTaxonomy = ref<"jlpt" | "grade" | "custom">("jlpt");
@@ -47,12 +50,24 @@ const levelsForTaxonomy = computed(() =>
 
 watch(
   () => selectedTaxonomy.value,
-  () => {
+  async () => {
     if (selectedTaxonomy.value === "custom") return;
     const first = levelsForTaxonomy.value[0];
     if (first) selectedLevel.value = first.id;
   },
   { immediate: true }
+);
+
+watch(
+  () => selectedTaxonomy.value,
+  async () => {
+    if (selectedTaxonomy.value !== "custom") return;
+    decks.value = await fetchDecks();
+    if (!selectedDeckId.value && decks.value.length > 0) {
+      selectedDeckId.value = decks.value[0].id;
+    }
+    await loadNext();
+  }
 );
 
 const readingLines = computed(() => {
@@ -86,10 +101,14 @@ const maskReading = computed(() => {
 const sourceLinks = computed(() => {
   if (!currentCard.value) return [] as Array<{ label: string; href: string }>;
   const encoded = encodeURIComponent(currentCard.value.term);
-  return [
+  const links = [
     { label: "Jisho", href: `https://jisho.org/search/${encoded}` },
     { label: "KanjiVG", href: "https://kanjivg.tagaini.net/" },
   ];
+  if (mnemonics.value.some((m) => m.source === "wanikani")) {
+    links.push({ label: "WaniKani", href: `https://www.wanikani.com/kanji/${encoded}` });
+  }
+  return links;
 });
 
 const ensureCardExists = async (item: DeckItem) => {
@@ -126,12 +145,14 @@ const syncDeckItems = async () => {
 const loadDetailsForCard = async (card: Card) => {
   kanjiDetails.value = null;
   wordDetails.value = null;
+  mnemonics.value = [];
   if (card.type === "vocab") {
     wordDetails.value = await fetchWordDetails(card.term);
     return;
   }
   kanjiDetails.value = await fetchKanjiDetails(card.term);
   await loadCompounds(card.term);
+  await loadMnemonics(card.term);
 };
 
 const loadExamples = async (term: string) => {
@@ -142,6 +163,10 @@ const loadCompounds = async (term: string) => {
   compounds.value = await fetchKanjiCompounds(term);
 };
 
+const loadMnemonics = async (term: string) => {
+  mnemonics.value = await fetchKanjiMnemonics(term);
+};
+
 const loadNext = async () => {
   loading.value = true;
   revealed.value = false;
@@ -150,11 +175,19 @@ const loadNext = async () => {
   wordDetails.value = null;
   examples.value = [];
   compounds.value = [];
+  mnemonics.value = [];
 
   let allowedIds: Set<string> | undefined;
   let levelFilter: string | undefined;
 
   if (selectedTaxonomy.value === "custom") {
+    if (!selectedDeckId.value) {
+      currentCard.value = null;
+      currentState.value = null;
+      queueReason.value = null;
+      loading.value = false;
+      return;
+    }
     await syncDeckItems();
     allowedIds = new Set(
       deckItems.value.map((item) =>
@@ -306,6 +339,7 @@ onMounted(async () => {
             :term="currentCard.term"
             :meta="kanjiDetails ? { strokeCount: kanjiDetails.strokeCount, jlptLevel: kanjiDetails.jlptLevel, taughtIn: kanjiDetails.taughtIn } : null"
             :compounds="currentCard.type === 'kanji' ? compounds : []"
+            :mnemonics="currentCard.type === 'kanji' ? mnemonics : []"
             :source-links="sourceLinks"
           />
         </div>

@@ -6,6 +6,7 @@
 - Keep progress global across decks while allowing filtered views per level/taxonomy.
 - Make sync feasible later without rewriting the data model.
 - Use an established UI framework (Bootstrap) for consistent UX.
+- Support WaniKani mnemonics for personal use, cached locally.
 
 ## Non-Goals (Initial)
 - Real-time multi-device sync.
@@ -17,7 +18,9 @@
 ## Tech Stack
 - Frontend: Nuxt 3 (SPA/SSG), Vue 3, Vue Router via Nuxt pages.
 - UI: Bootstrap (via Nuxt module or direct install).
-- Storage: IndexedDB (Dexie or idb wrapper).
+- Storage:
+  - Browser: IndexedDB (Dexie or idb wrapper) for SRS/progress.
+  - Device-local server DB (SQLite) for content cache (details/examples/mnemonics).
 - SRS: FSRS (library or in-repo implementation).
 - Offline assets: KanjiVG SVGs bundled or cached on demand.
 - Data import: client-side fetch + parsing for Jisho/WaniKani, plus manual CSV/JSON.
@@ -26,7 +29,7 @@
 
 ## Data Model (High-Level)
 
-### Core Entities
+### Core Entities (Browser)
 - `Card`
   - `id` (UUID)
   - `type` ("kanji" | "vocab" | "custom")
@@ -50,23 +53,14 @@
   - `cardId`
   - `reviewedAt`, `grade`, `elapsed`, `scheduled`
 
-- `Example`
-  - `id` (UUID)
-  - `cardId`
-  - `text` (Japanese)
-  - `reading` (optional)
-  - `source` ("jisho" | "wanikani" | "manual")
-  - `createdAt`, `updatedAt`
-
-- `DeckView`
-  - `id` (UUID)
-  - `name`
-  - `filters` (level taxonomy, card type, source, tags)
-  - `createdAt`, `updatedAt`
-
-- `Taxonomy`
-  - `id` ("jlpt" | "grade")
-  - `levels` (list with order)
+### Content Cache (Server SQLite)
+- `kanji_details`: Jisho kanji info.
+- `word_details`: Jisho vocab info.
+- `examples`: example sentences with source and timestamps.
+- `compounds`: kanji compounds with source and timestamps.
+- `mnemonics`: WaniKani/Manual mnemonics by term.
+- `settings`: key/value store for WaniKani token and config.
+- `decks` / `deck_items`: custom deck definitions.
 
 ### Sync-Later Readiness
 - Stable UUIDs across all records.
@@ -86,6 +80,7 @@
 - Decks are filters over global cards (no duplicated cards).
 - Level progression uses mastery thresholds (e.g., 80% mature to unlock next level).
 - Level tags on cards derived from official JLPT/grade lists.
+- Custom decks (user-defined) stored server-side.
 
 ### 3) Vocabulary Ingestion (Multi-source)
 - **Manual**: UI form + CSV/JSON import.
@@ -94,11 +89,17 @@
 - De-dup rules: same `term + reading[]` merges, preserving multiple sources.
 - Level tagging: vocab tagged by the highest/lowest level of its component kanji based on selected taxonomy.
 
-### 4) Kanji Wall
+### 4) Mnemonics (WaniKani)
+- Fetch kanji mnemonics via WaniKani API (token stored locally).
+- Cache to server DB; never share externally.
+- UI: show on card backs above compounds.
+- Optional manual override entries stored locally.
+
+### 5) Kanji Wall
 - Grid of all kanji with color by level or SRS status.
 - Filter and legend for progress categories (new/learning/review/mature).
 
-### 5) Examples
+### 6) Examples
 - Store multiple examples per card, allow user overrides.
 - UI toggles to prioritize user examples.
 
@@ -108,11 +109,11 @@
 - Use Nuxt pages and layouts for idiomatic routing.
 - `/` Dashboard (today’s due count, quick start)
 - `/review` Review session
-- `/decks` Decks and level settings
+- `/decks` Decks and level settings + custom deck creation
 - `/cards` Card browser and editor
 - `/kanji-wall` Progress wall
 - `/import` Vocab import + API tokens
-- `/settings` SRS settings, storage, export/backup
+- `/settings` SRS settings, WaniKani token, storage, export/backup
 
 ---
 
@@ -162,12 +163,12 @@ Deliverable: Fully functional SRS for kanji cards.
 
 Deliverable: Vocab cards appear and can be reviewed separately.
 
-### Phase 4 — Examples + Editing
+### Phase 4 — Examples + Mnemonics
 - Example editor for each card.
+- WaniKani mnemonic fetch + cache.
 - “Prefer personal examples” toggle.
-- Example rendering on review cards.
 
-Deliverable: User-generated examples stored and displayed.
+Deliverable: Mnemonics and user examples stored and displayed.
 
 ### Phase 5 — Kanji Wall + Progress UI
 - Kanji wall grid with progress coloring.
@@ -187,12 +188,13 @@ Deliverable: Stable local-first app ready for daily use.
 
 ## Risks & Mitigations
 - Jisho scraping can break: treat as optional, never block review.
+- WaniKani content is copyrighted: only fetch for user-owned token; do not redistribute.
 - IndexedDB limits: keep media assets small; allow cache cleanup.
 - FSRS complexity: use a trusted implementation or test heavily with fixtures.
 
 ---
 
 ## Next Step Proposal
-- Decide FSRS library (or in-repo implementation).
-- Decide IndexedDB wrapper (Dexie vs idb).
-- Confirm initial data sources for JLPT and grade lists.
+- Implement WaniKani mnemonic cache + UI.
+- Add custom deck creation UI.
+- Wire search boxes.

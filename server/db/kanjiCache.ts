@@ -52,6 +52,22 @@ const ensureDb = () => {
       createdAt INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS mnemonics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      term TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      text TEXT NOT NULL,
+      source TEXT NOT NULL,
+      createdAt INTEGER,
+      updatedAt INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updatedAt INTEGER
+    );
+
     CREATE TABLE IF NOT EXISTS decks (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

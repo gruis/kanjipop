@@ -1,20 +1,38 @@
 <script setup lang="ts">
 import { seedKanjiIfEmpty } from "~/lib/seed/seedKanji";
 import { flattenLevels, formatLevelLabel } from "~/lib/data/levelMeta";
+import { createDeck, fetchDecks, fetchDeckItems, type DeckItem, type DeckSummary } from "~/lib/services/decksApi";
 
 const db = useDb();
 const seeded = ref(false);
-const activeTaxonomy = ref<"jlpt" | "grade">("jlpt");
+const activeTaxonomy = ref<"jlpt" | "grade" | "custom">("jlpt");
 const search = ref("");
+const searchPlaceholder = "日";
 const selectedLevel = ref<string | null>(null);
+
+const customDecks = ref<DeckSummary[]>([]);
+const selectedDeckId = ref<string>("");
+const selectedDeckItems = ref<DeckItem[]>([]);
+const creatingDeck = ref(false);
+const deckName = ref("");
+const deckEntries = ref("");
+const deckMessage = ref("");
 
 const allLevels = flattenLevels();
 const levelsForTaxonomy = computed(() =>
   allLevels.filter((lvl) => lvl.taxonomy === activeTaxonomy.value)
 );
 
+const filteredLevels = computed(() => {
+  if (activeTaxonomy.value === "custom") return [];
+  const termFilter = search.value.trim();
+  if (!termFilter) return levelsForTaxonomy.value;
+  return levelsForTaxonomy.value.filter((lvl) => lvl.kanji.some((k) => k.includes(termFilter)));
+});
+
 const selected = computed(() => {
-  const level = levelsForTaxonomy.value.find((lvl) => lvl.id === selectedLevel.value);
+  if (activeTaxonomy.value === "custom") return null;
+  const level = filteredLevels.value.find((lvl) => lvl.id === selectedLevel.value) || filteredLevels.value[0];
   if (!level) return null;
 
   const termFilter = search.value.trim();
@@ -28,11 +46,23 @@ const selected = computed(() => {
   };
 });
 
+const customDecksFiltered = computed(() => {
+  const term = search.value.trim();
+  if (!term) return customDecks.value;
+  return customDecks.value.filter((deck) => deck.name.includes(term));
+});
+
+const selectedCustomDeck = computed(() => {
+  if (!selectedDeckId.value) return null;
+  return customDecks.value.find((deck) => deck.id === selectedDeckId.value) || null;
+});
+
 const kanjiCardPath = (kanji: string) => `/cards/${encodeURIComponent(`kanji:${kanji}`)}`;
 
 const deckStats = ref<Record<string, { total: number; new: number; learning: number; review: number; relearn: number }>>({});
 
 const computeDeckStats = async () => {
+  if (activeTaxonomy.value === "custom") return;
   const reviewStates = await db.reviewStates.toArray();
   const stateByCard = new Map(reviewStates.map((s) => [s.cardId, s.state]));
 
@@ -68,17 +98,67 @@ const computeDeckStats = async () => {
 
 const percent = (count: number, total: number) => (total ? Math.round((count / total) * 100) : 0);
 
+const loadDecks = async () => {
+  customDecks.value = await fetchDecks();
+  if (!selectedDeckId.value && customDecks.value.length > 0) {
+    selectedDeckId.value = customDecks.value[0].id;
+  }
+};
+
+const loadDeckItems = async () => {
+  if (!selectedDeckId.value) {
+    selectedDeckItems.value = [];
+    return;
+  }
+  selectedDeckItems.value = await fetchDeckItems(selectedDeckId.value);
+};
+
+const onCreateDeck = async () => {
+  const name = deckName.value.trim();
+  const entries = deckEntries.value.trim();
+  if (!name || !entries) return;
+
+  creatingDeck.value = true;
+  deckMessage.value = "";
+  try {
+    await createDeck(name, entries);
+    deckName.value = "";
+    deckEntries.value = "";
+    deckMessage.value = "Deck created.";
+    await loadDecks();
+    await loadDeckItems();
+  } catch (err) {
+    deckMessage.value = `Failed to create deck: ${String(err)}`;
+  } finally {
+    creatingDeck.value = false;
+  }
+};
+
 onMounted(async () => {
   await seedKanjiIfEmpty(db);
   seeded.value = true;
-  if (!selectedLevel.value && levelsForTaxonomy.value.length > 0) {
-    selectedLevel.value = levelsForTaxonomy.value[0].id;
+  if (!selectedLevel.value && filteredLevels.value.length > 0) {
+    selectedLevel.value = filteredLevels.value[0].id;
   }
   await computeDeckStats();
+  await loadDecks();
+  await loadDeckItems();
 });
 
-watch(activeTaxonomy, async () => {
-  await computeDeckStats();
+watch([activeTaxonomy, search], async () => {
+  if (activeTaxonomy.value !== "custom") {
+    if (!selectedLevel.value && filteredLevels.value.length > 0) {
+      selectedLevel.value = filteredLevels.value[0].id;
+    }
+    if (selectedLevel.value && !filteredLevels.value.find((lvl) => lvl.id === selectedLevel.value)) {
+      selectedLevel.value = filteredLevels.value[0]?.id || null;
+    }
+    await computeDeckStats();
+  }
+});
+
+watch(selectedDeckId, async () => {
+  await loadDeckItems();
 });
 </script>
 
@@ -86,8 +166,7 @@ watch(activeTaxonomy, async () => {
   <div>
     <h1 class="h3">Decks</h1>
     <p class="text-muted">
-      Browse kanji by JLPT or school grade. This is a static level view; SRS
-      progress will be layered on top later.
+      Browse kanji by JLPT or school grade, or create your own custom decks.
     </p>
 
     <div class="d-flex flex-wrap gap-2 align-items-center mb-4">
@@ -106,24 +185,37 @@ watch(activeTaxonomy, async () => {
         >
           Grade
         </button>
+        <button
+          class="btn"
+          :class="activeTaxonomy === 'custom' ? 'btn-primary' : 'btn-outline-primary'"
+          @click="activeTaxonomy = 'custom'"
+        >
+          Custom
+        </button>
       </div>
 
       <div class="input-group" style="max-width: 320px">
         <span class="input-group-text">Search</span>
-        <input v-model="search" class="form-control" placeholder="日" />
+        <input
+          v-model="search"
+          class="form-control"
+          :placeholder="searchPlaceholder"
+          @focus="($event.target as HTMLInputElement).placeholder = ''"
+          @blur="($event.target as HTMLInputElement).placeholder = searchPlaceholder"
+        />
       </div>
 
       <span class="text-muted">{{ seeded ? "Seeded" : "Seeding..." }}</span>
     </div>
 
     <div class="row g-4">
-      <div class="col-lg-4">
+      <div class="col-lg-4" v-if="activeTaxonomy !== 'custom'">
         <div class="card">
           <div class="card-body">
             <h2 class="h5">Levels</h2>
             <div class="list-group">
               <button
-                v-for="level in levelsForTaxonomy"
+                v-for="level in filteredLevels"
                 :key="level.id"
                 type="button"
                 class="list-group-item list-group-item-action"
@@ -165,12 +257,12 @@ watch(activeTaxonomy, async () => {
         </div>
       </div>
 
-      <div class="col-lg-8">
+      <div class="col-lg-8" v-if="activeTaxonomy !== 'custom'">
         <div class="card h-100">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h2 class="h5 mb-0">
-                {{ selected ? `${selected.taxonomy.toUpperCase()} ${selected.id}` : "Select a level" }}
+                {{ selected ? formatLevelLabel(selected.taxonomy, selected.id) : "Select a level" }}
               </h2>
               <span class="text-muted">
                 {{ selected ? selected.kanji.length : 0 }} kanji
@@ -192,6 +284,90 @@ watch(activeTaxonomy, async () => {
               <span v-if="selected.kanji.length === 0" class="text-muted">
                 No kanji match the current filter.
               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12" v-else>
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h2 class="h5">Create Custom Deck</h2>
+                <p class="text-muted">
+                  Enter kanji or compounds separated by spaces, commas, or new lines.
+                </p>
+                <div class="mb-2">
+                  <input v-model="deckName" class="form-control" placeholder="Deck name" />
+                </div>
+                <div class="mb-2">
+                  <textarea
+                    v-model="deckEntries"
+                    class="form-control"
+                    rows="6"
+                    :placeholder="'語 学 読\\n面積'"
+                  ></textarea>
+                </div>
+                <button class="btn btn-outline-primary" :disabled="creatingDeck" @click="onCreateDeck">
+                  {{ creatingDeck ? "Creating..." : "Create deck" }}
+                </button>
+                <p v-if="deckMessage" class="mt-2 mb-0">{{ deckMessage }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h2 class="h5">Your Decks</h2>
+                <div v-if="customDecksFiltered.length === 0" class="text-muted">
+                  No decks yet.
+                </div>
+                <div v-else class="list-group">
+                  <button
+                    v-for="deck in customDecksFiltered"
+                    :key="deck.id"
+                    type="button"
+                    class="list-group-item list-group-item-action"
+                    :class="selectedDeckId === deck.id ? 'active' : ''"
+                    @click="selectedDeckId = deck.id"
+                  >
+                    <div class="fw-semibold">{{ deck.name }}</div>
+                    <div class="text-muted small">ID: {{ deck.id }}</div>
+                  </button>
+                </div>
+              </div>
+              <div class="card-footer text-muted">
+                {{ customDecks.length }} total decks
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="card">
+              <div class="card-body">
+                <h2 class="h5">Deck Contents</h2>
+                <p v-if="!selectedCustomDeck" class="text-muted mb-0">
+                  Select a deck to view its items.
+                </p>
+                <div v-else>
+                  <div class="text-muted mb-2">{{ selectedCustomDeck.name }}</div>
+                  <div v-if="selectedDeckItems.length === 0" class="text-muted">
+                    No items in this deck yet.
+                  </div>
+                  <div v-else class="d-flex flex-wrap gap-2">
+                    <span
+                      v-for="item in selectedDeckItems"
+                      :key="`${item.type}:${item.term}`"
+                      class="badge text-bg-light border"
+                      style="font-size: 1rem; padding: 0.4rem 0.6rem"
+                    >
+                      {{ item.term }}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

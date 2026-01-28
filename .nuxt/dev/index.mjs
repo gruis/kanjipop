@@ -2136,22 +2136,7 @@ const plugins = [
 _7kg7A1Y9A3YdsnP6cJICov6M27Mb9kQLs5gW_3_Jkw
 ];
 
-const assets = {
-  "/index.mjs": {
-    "type": "text/javascript; charset=utf-8",
-    "etag": "\"1d626-J8j4pC+mnL6vQ5u37mQJcQ0wMCw\"",
-    "mtime": "2026-01-28T09:55:14.429Z",
-    "size": 120358,
-    "path": "index.mjs"
-  },
-  "/index.mjs.map": {
-    "type": "application/json",
-    "etag": "\"7536f-dp8eGVQQs1tVIJYexKQqFG/d1S4\"",
-    "mtime": "2026-01-28T09:55:14.429Z",
-    "size": 480111,
-    "path": "index.mjs.map"
-  }
-};
+const assets = {};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -2607,7 +2592,10 @@ const _lazy_VKnhsJ = () => Promise.resolve().then(function () { return compounds
 const _lazy_HqFbpm = () => Promise.resolve().then(function () { return details_get$3; });
 const _lazy_j3QcrF = () => Promise.resolve().then(function () { return examples_get$1; });
 const _lazy_LBCckA = () => Promise.resolve().then(function () { return examples_post$1; });
+const _lazy_xPD8dV = () => Promise.resolve().then(function () { return mnemonics_get$1; });
 const _lazy_hyU08E = () => Promise.resolve().then(function () { return ping_get$1; });
+const _lazy_laWQXu = () => Promise.resolve().then(function () { return wanikaniToken_get$1; });
+const _lazy_2VolRi = () => Promise.resolve().then(function () { return wanikaniToken_post$1; });
 const _lazy_RSriCb = () => Promise.resolve().then(function () { return details_get$1; });
 const _lazy_OIML5t = () => Promise.resolve().then(function () { return renderer$1; });
 
@@ -2620,7 +2608,10 @@ const handlers = [
   { route: '/api/kanji/details', handler: _lazy_HqFbpm, lazy: true, middleware: false, method: "get" },
   { route: '/api/kanji/examples', handler: _lazy_j3QcrF, lazy: true, middleware: false, method: "get" },
   { route: '/api/kanji/examples', handler: _lazy_LBCckA, lazy: true, middleware: false, method: "post" },
+  { route: '/api/kanji/mnemonics', handler: _lazy_xPD8dV, lazy: true, middleware: false, method: "get" },
   { route: '/api/ping', handler: _lazy_hyU08E, lazy: true, middleware: false, method: "get" },
+  { route: '/api/settings/wanikani-token', handler: _lazy_laWQXu, lazy: true, middleware: false, method: "get" },
+  { route: '/api/settings/wanikani-token', handler: _lazy_2VolRi, lazy: true, middleware: false, method: "post" },
   { route: '/api/word/details', handler: _lazy_RSriCb, lazy: true, middleware: false, method: "get" },
   { route: '/__nuxt_error', handler: _lazy_OIML5t, lazy: true, middleware: false, method: undefined },
   { route: '/__nuxt_island/**', handler: _SxA8c9, lazy: false, middleware: false, method: undefined },
@@ -3010,6 +3001,22 @@ const ensureDb = () => {
       createdAt INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS mnemonics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      term TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      text TEXT NOT NULL,
+      source TEXT NOT NULL,
+      createdAt INTEGER,
+      updatedAt INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updatedAt INTEGER
+    );
+
     CREATE TABLE IF NOT EXISTS decks (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -3300,6 +3307,77 @@ const examples_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePro
   default: examples_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const WANIKANI_REVISION = "20170710";
+const fetchWaniKani = async (token, term) => {
+  var _a;
+  const base = "https://api.wanikani.com/v2/subjects";
+  const makeUrl = (param) => `${base}?types=kanji&${param}=${encodeURIComponent(term)}`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Wanikani-Revision": WANIKANI_REVISION,
+    Accept: "application/json",
+    "User-Agent": "kanji-prompt (personal use)"
+  };
+  const tryFetch = async (url) => {
+    const res = await fetch(url, { headers });
+    if (!res.ok) return null;
+    return await res.json();
+  };
+  const first = await tryFetch(makeUrl("slugs"));
+  const data = (first == null ? void 0 : first.data) && first.data.length ? first : await tryFetch(makeUrl("characters"));
+  const subject = (data == null ? void 0 : data.data) && data.data.length ? (_a = data.data[0]) == null ? void 0 : _a.data : null;
+  if (!subject) return [];
+  const results = [];
+  if (subject.meaning_mnemonic) results.push({ kind: "meaning", text: subject.meaning_mnemonic });
+  if (subject.reading_mnemonic) results.push({ kind: "reading", text: subject.reading_mnemonic });
+  return results;
+};
+const mnemonics_get = defineEventHandler(async (event) => {
+  var _a;
+  const query = getQuery$1(event);
+  const term = typeof query.term === "string" ? query.term : "";
+  const refresh = query.refresh === "1";
+  if (!term) {
+    setResponseStatus(event, 400);
+    return { error: "Missing term." };
+  }
+  const db = getDb();
+  const rows = db.prepare("SELECT kind, text, source FROM mnemonics WHERE term = ? ORDER BY id ASC").all(term);
+  if (rows.length && !refresh) {
+    return { results: rows, cached: true };
+  }
+  const tokenRow = db.prepare("SELECT value FROM settings WHERE key = ?").get("wanikani_token");
+  const token = ((_a = tokenRow == null ? void 0 : tokenRow.value) == null ? void 0 : _a.trim()) || "";
+  if (!token) {
+    return { results: rows, cached: rows.length > 0, missingToken: true };
+  }
+  try {
+    const mnemonics = await fetchWaniKani(token, term);
+    const now = Date.now();
+    const deleteStmt = db.prepare("DELETE FROM mnemonics WHERE term = ? AND source = ?");
+    const insertStmt = db.prepare(
+      "INSERT INTO mnemonics (term, kind, text, source, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    const tx = db.transaction(() => {
+      deleteStmt.run(term, "wanikani");
+      for (const entry of mnemonics) {
+        insertStmt.run(term, entry.kind, entry.text, "wanikani", now, now);
+      }
+    });
+    tx();
+    const merged = db.prepare("SELECT kind, text, source FROM mnemonics WHERE term = ? ORDER BY id ASC").all(term);
+    return { results: merged, cached: false };
+  } catch (err) {
+    setResponseStatus(event, 502);
+    return { error: String(err) };
+  }
+});
+
+const mnemonics_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: mnemonics_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const ping_get = defineEventHandler(() => {
   console.log("[nitro] /api/ping handler reached");
   return { ok: true, ts: Date.now() };
@@ -3308,6 +3386,43 @@ const ping_get = defineEventHandler(() => {
 const ping_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: ping_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const wanikaniToken_get = defineEventHandler(() => {
+  const db = getDb();
+  const row = db.prepare("SELECT value, updatedAt FROM settings WHERE key = ?").get("wanikani_token");
+  const token = (row == null ? void 0 : row.value) || "";
+  return {
+    hasToken: Boolean(token),
+    updatedAt: (row == null ? void 0 : row.updatedAt) || null
+  };
+});
+
+const wanikaniToken_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: wanikaniToken_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const wanikaniToken_post = defineEventHandler(async (event) => {
+  const body = await readBody(event);
+  const token = ((body == null ? void 0 : body.token) || "").trim();
+  if (!token) {
+    setResponseStatus(event, 400);
+    return { error: "Missing token." };
+  }
+  const db = getDb();
+  const now = Date.now();
+  db.prepare(
+    `INSERT INTO settings (key, value, updatedAt)
+     VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updatedAt=excluded.updatedAt`
+  ).run("wanikani_token", token, now);
+  return { ok: true, updatedAt: now };
+});
+
+const wanikaniToken_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: wanikaniToken_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const jisho = new JishoAPI();

@@ -1,9 +1,9 @@
 # Backlog
 
 ## Not implemented yet (from recent requests)
-- [ ] Custom deck creation UI that lets you enter kanji compounds, splits them into kanji, fetches details/examples/compounds, and creates a deck of those items.
-- [ ] Manual kanji/vocab entry workflow for user-provided decks (with compound parsing and card creation).
-- [ ] Review scoping to custom decks (beyond JLPT/Grade selectors).
+- [ ] Manual mnemonic entry and editing UI per card (custom mnemonics).
+- [ ] Custom deck management (rename, delete, reorder, add/remove items).
+- [ ] Deck detail view with item list and per-item status.
 
 ## Planned features from overall goal (not started)
 - [ ] FSRS tuning UI (retention target, max interval, etc.).
@@ -18,6 +18,4 @@
 - [ ] Printable PDF / card export.
 - [ ] Per-kanji detail view enhancements (radicals, parts, frequency).
 - [ ] Multi-user support
-- [ ] Support search
 - [ ] Pre-load data
-- [ ] Mnemonic for each Kanji

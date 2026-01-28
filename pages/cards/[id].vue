@@ -6,10 +6,12 @@ import {
   fetchKanjiDetails,
   fetchKanjiExamples,
   fetchKanjiCompounds,
+  fetchKanjiMnemonics,
   addManualExample,
   type KanjiCompound,
   type KanjiDetails,
   type KanjiExample,
+  type KanjiMnemonic,
 } from "~/lib/services/kanjiApi";
 import { pickMaskReading } from "~/lib/services/exampleMask";
 
@@ -28,10 +30,12 @@ const revealed = ref(false);
 const details = ref<KanjiDetails | null>(null);
 const examples = ref<KanjiExample[]>([]);
 const compounds = ref<KanjiCompound[]>([]);
+const mnemonics = ref<KanjiMnemonic[]>([]);
 
 const fetchingDetails = ref(false);
 const fetchingExamples = ref(false);
 const fetchingCompounds = ref(false);
+const fetchingMnemonics = ref(false);
 const savingExample = ref(false);
 
 const newExampleText = ref("");
@@ -58,10 +62,14 @@ const maskReading = computed(() => {
 const sourceLinks = computed(() => {
   if (!card.value) return [] as Array<{ label: string; href: string }>;
   const encoded = encodeURIComponent(card.value.term);
-  return [
+  const links = [
     { label: "Jisho", href: `https://jisho.org/search/${encoded}%23kanji` },
     { label: "KanjiVG", href: "https://kanjivg.tagaini.net/" },
   ];
+  if (mnemonics.value.some((m) => m.source === "wanikani")) {
+    links.push({ label: "WaniKani", href: `https://www.wanikani.com/kanji/${encoded}` });
+  }
+  return links;
 });
 
 const loadDetails = async (term: string, refresh = false) => {
@@ -88,6 +96,15 @@ const loadCompounds = async (term: string, refresh = false) => {
     compounds.value = await fetchKanjiCompounds(term, refresh);
   } finally {
     fetchingCompounds.value = false;
+  }
+};
+
+const loadMnemonics = async (term: string, refresh = false) => {
+  fetchingMnemonics.value = true;
+  try {
+    mnemonics.value = await fetchKanjiMnemonics(term, refresh);
+  } finally {
+    fetchingMnemonics.value = false;
   }
 };
 
@@ -128,10 +145,12 @@ const loadCard = async () => {
     await loadDetails(found.term);
     await loadExamples(found.term);
     await loadCompounds(found.term);
+    await loadMnemonics(found.term);
   } else {
     details.value = null;
     examples.value = [];
     compounds.value = [];
+    mnemonics.value = [];
   }
 
   loading.value = false;
@@ -190,6 +209,9 @@ watch(
             :term="card.term"
             :meta="details ? { strokeCount: details.strokeCount, jlptLevel: details.jlptLevel, taughtIn: details.taughtIn } : null"
             :compounds="compounds"
+            :mnemonics="mnemonics"
+            :open-mnemonics="true"
+            :open-compounds="true"
             :source-links="sourceLinks"
           />
         </div>
@@ -217,6 +239,14 @@ watch(
             @click="card && loadCompounds(card.term, true)"
           >
             {{ fetchingCompounds ? "Refreshing..." : "Refresh compounds" }}
+          </button>
+
+          <button
+            class="btn btn-outline-secondary"
+            :disabled="fetchingMnemonics"
+            @click="card && loadMnemonics(card.term, true)"
+          >
+            {{ fetchingMnemonics ? "Refreshing..." : "Refresh mnemonics" }}
           </button>
         </div>
 
