@@ -22,6 +22,7 @@ import { flattenLevels, formatLevelLabel } from "~/lib/data/levelMeta";
 import { fetchDecks, fetchDeckItems, type DeckItem, type DeckSummary } from "~/lib/services/decksApi";
 
 const db = useDb();
+const route = useRoute();
 const loading = ref(true);
 const currentCard = ref<Card | null>(null);
 const currentState = ref<ReviewState | null>(null);
@@ -52,6 +53,8 @@ watch(
   () => selectedTaxonomy.value,
   async () => {
     if (selectedTaxonomy.value === "custom") return;
+    const levelIds = levelsForTaxonomy.value.map((lvl) => lvl.id);
+    if (selectedLevel.value && levelIds.includes(selectedLevel.value)) return;
     const first = levelsForTaxonomy.value[0];
     if (first) selectedLevel.value = first.id;
   },
@@ -242,7 +245,17 @@ watch(selectedDeckId, async () => {
 
 onMounted(async () => {
   decks.value = await fetchDecks();
-  if (decks.value.length > 0) selectedDeckId.value = decks.value[0].id;
+  const requestedTaxonomy = typeof route.query.taxonomy === "string" ? route.query.taxonomy : "";
+  const requestedDeckId = typeof route.query.deckId === "string" ? route.query.deckId : "";
+  const requestedLevel = typeof route.query.level === "string" ? route.query.level : "";
+  if (requestedTaxonomy === "custom") {
+    selectedTaxonomy.value = "custom";
+    if (requestedDeckId) selectedDeckId.value = requestedDeckId;
+  } else if (requestedTaxonomy === "jlpt" || requestedTaxonomy === "grade") {
+    selectedTaxonomy.value = requestedTaxonomy;
+    if (requestedLevel) selectedLevel.value = requestedLevel;
+  }
+  if (!selectedDeckId.value && decks.value.length > 0) selectedDeckId.value = decks.value[0].id;
   await loadNext();
 });
 </script>

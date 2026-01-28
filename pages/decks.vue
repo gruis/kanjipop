@@ -13,6 +13,7 @@ const selectedLevel = ref<string | null>(null);
 const customDecks = ref<DeckSummary[]>([]);
 const selectedDeckId = ref<string>("");
 const selectedDeckItems = ref<DeckItem[]>([]);
+const showCreateForm = ref(false);
 const creatingDeck = ref(false);
 const deckName = ref("");
 const deckEntries = ref("");
@@ -127,6 +128,7 @@ const onCreateDeck = async () => {
     deckMessage.value = "Deck created.";
     await loadDecks();
     await loadDeckItems();
+    showCreateForm.value = false;
   } catch (err) {
     deckMessage.value = `Failed to create deck: ${String(err)}`;
   } finally {
@@ -209,11 +211,12 @@ watch(selectedDeckId, async () => {
     </div>
 
     <div class="row g-4">
-      <div class="col-lg-4" v-if="activeTaxonomy !== 'custom'">
+      <div class="col-lg-4">
         <div class="card">
           <div class="card-body">
-            <h2 class="h5">Levels</h2>
-            <div class="list-group">
+            <h2 class="h5">{{ activeTaxonomy === 'custom' ? 'Custom Decks' : 'Levels' }}</h2>
+
+            <div class="list-group" v-if="activeTaxonomy !== 'custom'">
               <button
                 v-for="level in filteredLevels"
                 :key="level.id"
@@ -226,75 +229,33 @@ watch(selectedDeckId, async () => {
                   <span>{{ formatLevelLabel(level.taxonomy, level.id) }}</span>
                   <span class="badge bg-secondary">{{ level.kanji.length }}</span>
                 </div>
-                <div class="progress mt-2" style="height: 8px">
+                <div
+                  class="progress mt-2"
+                  style="height: 8px"
+                  :title="`New ${deckStats[`${level.taxonomy}:${level.id}`]?.new || 0} · Learning ${deckStats[`${level.taxonomy}:${level.id}`]?.learning || 0} · Review ${deckStats[`${level.taxonomy}:${level.id}`]?.review || 0} · Relearn ${deckStats[`${level.taxonomy}:${level.id}`]?.relearn || 0}`"
+                >
                   <div
                     class="progress-bar bg-secondary"
                     :style="{ width: percent(deckStats[`${level.taxonomy}:${level.id}`]?.new || 0, deckStats[`${level.taxonomy}:${level.id}`]?.total || 0) + '%' }"
-                    title="New"
                   ></div>
                   <div
                     class="progress-bar bg-warning"
                     :style="{ width: percent(deckStats[`${level.taxonomy}:${level.id}`]?.learning || 0, deckStats[`${level.taxonomy}:${level.id}`]?.total || 0) + '%' }"
-                    title="Learning"
                   ></div>
                   <div
                     class="progress-bar bg-success"
                     :style="{ width: percent(deckStats[`${level.taxonomy}:${level.id}`]?.review || 0, deckStats[`${level.taxonomy}:${level.id}`]?.total || 0) + '%' }"
-                    title="Review"
                   ></div>
                   <div
                     class="progress-bar bg-danger"
                     :style="{ width: percent(deckStats[`${level.taxonomy}:${level.id}`]?.relearn || 0, deckStats[`${level.taxonomy}:${level.id}`]?.total || 0) + '%' }"
-                    title="Relearn"
                   ></div>
                 </div>
               </button>
             </div>
-          </div>
-          <div class="card-footer text-muted">
-            {{ seeded ? "Seeded" : "Seeding..." }}
-          </div>
-        </div>
-      </div>
 
-      <div class="col-lg-8" v-if="activeTaxonomy !== 'custom'">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h2 class="h5 mb-0">
-                {{ selected ? formatLevelLabel(selected.taxonomy, selected.id) : "Select a level" }}
-              </h2>
-              <span class="text-muted">
-                {{ selected ? selected.kanji.length : 0 }} kanji
-              </span>
-            </div>
-
-            <div v-if="!selected" class="text-muted">Select a level to view kanji.</div>
-
-            <div v-else class="d-flex flex-wrap gap-2" style="min-height: 200px">
-              <NuxtLink
-                v-for="k in selected.kanji"
-                :key="k"
-                class="badge text-bg-light border text-decoration-none"
-                style="font-size: 1.1rem; padding: 0.5rem 0.75rem"
-                :to="kanjiCardPath(k)"
-              >
-                {{ k }}
-              </NuxtLink>
-              <span v-if="selected.kanji.length === 0" class="text-muted">
-                No kanji match the current filter.
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12" v-else>
-        <div class="row g-4">
-          <div class="col-lg-6">
-            <div class="card h-100">
-              <div class="card-body">
-                <h2 class="h5">Create Custom Deck</h2>
+            <div v-else>
+              <div v-if="showCreateForm">
                 <p class="text-muted">
                   Enter kanji or compounds separated by spaces, commas, or new lines.
                 </p>
@@ -306,21 +267,16 @@ watch(selectedDeckId, async () => {
                     v-model="deckEntries"
                     class="form-control"
                     rows="6"
-                    :placeholder="'語 学 読\\n面積'"
+                    placeholder="語 学 読&#10;面積"
                   ></textarea>
                 </div>
                 <button class="btn btn-outline-primary" :disabled="creatingDeck" @click="onCreateDeck">
                   {{ creatingDeck ? "Creating..." : "Create deck" }}
                 </button>
+                <button class="btn btn-link ms-2" @click="showCreateForm = false">Cancel</button>
                 <p v-if="deckMessage" class="mt-2 mb-0">{{ deckMessage }}</p>
               </div>
-            </div>
-          </div>
-
-          <div class="col-lg-6">
-            <div class="card h-100">
-              <div class="card-body">
-                <h2 class="h5">Your Decks</h2>
+              <div v-else>
                 <div v-if="customDecksFiltered.length === 0" class="text-muted">
                   No decks yet.
                 </div>
@@ -334,38 +290,106 @@ watch(selectedDeckId, async () => {
                     @click="selectedDeckId = deck.id"
                   >
                     <div class="fw-semibold">{{ deck.name }}</div>
-                    <div class="text-muted small">ID: {{ deck.id }}</div>
                   </button>
                 </div>
-              </div>
-              <div class="card-footer text-muted">
-                {{ customDecks.length }} total decks
+                <button class="btn btn-outline-secondary mt-3" @click="showCreateForm = true">
+                  New
+                </button>
               </div>
             </div>
           </div>
+          <div class="card-footer text-muted">
+            {{ seeded ? "Seeded" : "Seeding..." }}
+          </div>
+        </div>
+        <div class="small text-muted mt-2" v-if="activeTaxonomy !== 'custom'">
+          Key:
+          <span class="badge bg-secondary me-1">New</span>
+          <span class="badge bg-warning text-dark me-1">Learning</span>
+          <span class="badge bg-success me-1">Review</span>
+          <span class="badge bg-danger">Relearn</span>
+          <div class="mt-2">
+            Colors represent the current SRS stage (not your last button choice). Typical cadence: New = not seen yet;
+            Learning = repeats within minutes/hours, then again within ~1–3 days; Review = days → weeks → months as you
+            keep succeeding; Relearn = failed reviews that return quickly (minutes/hours) before rejoining Review.
+          </div>
+        </div>
+      </div>
 
-          <div class="col-12">
-            <div class="card">
-              <div class="card-body">
-                <h2 class="h5">Deck Contents</h2>
-                <p v-if="!selectedCustomDeck" class="text-muted mb-0">
-                  Select a deck to view its items.
-                </p>
-                <div v-else>
-                  <div class="text-muted mb-2">{{ selectedCustomDeck.name }}</div>
-                  <div v-if="selectedDeckItems.length === 0" class="text-muted">
-                    No items in this deck yet.
-                  </div>
-                  <div v-else class="d-flex flex-wrap gap-2">
-                    <span
-                      v-for="item in selectedDeckItems"
-                      :key="`${item.type}:${item.term}`"
-                      class="badge text-bg-light border"
-                      style="font-size: 1rem; padding: 0.4rem 0.6rem"
-                    >
-                      {{ item.term }}
-                    </span>
-                  </div>
+      <div class="col-lg-8">
+        <div class="card h-100">
+          <div class="card-body">
+            <div v-if="activeTaxonomy !== 'custom'">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <h2 class="h5 mb-0">
+                    {{ selected ? formatLevelLabel(selected.taxonomy, selected.id) : "Select a level" }}
+                  </h2>
+                  <span class="text-muted">
+                    {{ selected ? selected.kanji.length : 0 }} kanji
+                  </span>
+                </div>
+                <NuxtLink
+                  v-if="selected"
+                  class="btn btn-outline-primary"
+                  :to="`/review?taxonomy=${selected.taxonomy}&level=${encodeURIComponent(selected.id)}`"
+                >
+                  Review Deck
+                </NuxtLink>
+              </div>
+
+              <div v-if="!selected" class="text-muted">Select a level to view kanji.</div>
+
+              <div v-else class="d-flex flex-wrap gap-2" style="min-height: 200px">
+                <NuxtLink
+                  v-for="k in selected.kanji"
+                  :key="k"
+                  class="badge text-bg-light border text-decoration-none"
+                  style="font-size: 1.1rem; padding: 0.5rem 0.75rem"
+                  :to="kanjiCardPath(k)"
+                >
+                  {{ k }}
+                </NuxtLink>
+                <span v-if="selected.kanji.length === 0" class="text-muted">
+                  No kanji match the current filter.
+                </span>
+              </div>
+            </div>
+
+            <div v-else>
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <h2 class="h5 mb-0">Deck Contents</h2>
+                  <span class="text-muted" v-if="selectedCustomDeck">
+                    {{ selectedDeckItems.length }} items
+                  </span>
+                </div>
+                <NuxtLink
+                  v-if="selectedCustomDeck"
+                  class="btn btn-outline-primary"
+                  :to="`/review?taxonomy=custom&deckId=${encodeURIComponent(selectedCustomDeck.id)}`"
+                >
+                  Review Deck
+                </NuxtLink>
+              </div>
+              <p v-if="!selectedCustomDeck" class="text-muted mb-0">
+                Select a deck to view its items.
+              </p>
+              <div v-else>
+                <div class="text-muted mb-2">{{ selectedCustomDeck.name }}</div>
+                <div v-if="selectedDeckItems.length === 0" class="text-muted">
+                  No items in this deck yet.
+                </div>
+                <div v-else class="d-flex flex-wrap gap-2">
+                  <NuxtLink
+                    v-for="item in selectedDeckItems"
+                    :key="`${item.type}:${item.term}`"
+                    class="badge text-bg-light border text-decoration-none"
+                    style="font-size: 1rem; padding: 0.4rem 0.6rem"
+                    :to="`/cards/${encodeURIComponent(`${item.type}:${item.term}`)}`"
+                  >
+                    {{ item.term }}
+                  </NuxtLink>
                 </div>
               </div>
             </div>

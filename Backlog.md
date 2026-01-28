@@ -19,3 +19,4 @@
 - [ ] Per-kanji detail view enhancements (radicals, parts, frequency).
 - [ ] Multi-user support
 - [ ] Pre-load data
+- [ ] Show Wanikani level
