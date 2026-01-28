@@ -26,6 +26,13 @@ const ensureDb = () => {
       updatedAt INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS word_details (
+      term TEXT PRIMARY KEY,
+      reading TEXT,
+      meaning TEXT,
+      updatedAt INTEGER
+    );
+
     CREATE TABLE IF NOT EXISTS examples (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       term TEXT NOT NULL,
@@ -43,6 +50,20 @@ const ensureDb = () => {
       meaning TEXT,
       source TEXT NOT NULL,
       createdAt INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS decks (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      createdAt INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS deck_items (
+      deckId TEXT NOT NULL,
+      term TEXT NOT NULL,
+      type TEXT NOT NULL,
+      createdAt INTEGER,
+      PRIMARY KEY (deckId, term, type)
     );
   `);
 

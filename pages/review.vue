@@ -9,12 +9,15 @@ import {
   fetchKanjiDetails,
   fetchKanjiExamples,
   fetchKanjiCompounds,
+  fetchWordDetails,
   type KanjiCompound,
   type KanjiDetails,
   type KanjiExample,
+  type WordDetails,
 } from "~/lib/services/kanjiApi";
 import { pickMaskReading } from "~/lib/services/exampleMask";
 import { flattenLevels, formatLevelLabel } from "~/lib/data/levelMeta";
+import { fetchDecks, fetchDeckItems, type DeckItem, type DeckSummary } from "~/lib/services/decksApi";
 
 const db = useDb();
 const loading = ref(true);
@@ -24,13 +27,17 @@ const revealed = ref(false);
 const message = ref("");
 const queueReason = ref<"due" | "new" | null>(null);
 
-const details = ref<KanjiDetails | null>(null);
+const kanjiDetails = ref<KanjiDetails | null>(null);
+const wordDetails = ref<WordDetails | null>(null);
 const examples = ref<KanjiExample[]>([]);
 const compounds = ref<KanjiCompound[]>([]);
 
 const levelOptions = flattenLevels();
-const selectedTaxonomy = ref<"jlpt" | "grade">("jlpt");
+const selectedTaxonomy = ref<"jlpt" | "grade" | "custom">("jlpt");
 const selectedLevel = ref<string>("N5");
+const decks = ref<DeckSummary[]>([]);
+const selectedDeckId = ref<string>("");
+const deckItems = ref<DeckItem[]>([]);
 
 const levelTag = computed(() => `${selectedTaxonomy.value}:${selectedLevel.value}`);
 
@@ -41,6 +48,7 @@ const levelsForTaxonomy = computed(() =>
 watch(
   () => selectedTaxonomy.value,
   () => {
+    if (selectedTaxonomy.value === "custom") return;
     const first = levelsForTaxonomy.value[0];
     if (first) selectedLevel.value = first.id;
   },
@@ -48,34 +56,82 @@ watch(
 );
 
 const readingLines = computed(() => {
-  if (!details.value) return [] as string[];
+  if (currentCard.value?.type === "vocab") {
+    return wordDetails.value?.reading ? [`読み: ${wordDetails.value.reading}`] : [];
+  }
+  if (!kanjiDetails.value) return [] as string[];
   const lines: string[] = [];
-  if (details.value.kunyomi?.length) lines.push(`訓: ${details.value.kunyomi.join(" / ")}`);
-  if (details.value.onyomi?.length) lines.push(`音: ${details.value.onyomi.join(" / ")}`);
+  if (kanjiDetails.value.kunyomi?.length) lines.push(`訓: ${kanjiDetails.value.kunyomi.join(" / ")}`);
+  if (kanjiDetails.value.onyomi?.length) lines.push(`音: ${kanjiDetails.value.onyomi.join(" / ")}`);
   return lines;
 });
 
 const meaningLines = computed(() => {
-  if (!details.value?.meaning) return [] as string[];
-  return details.value.meaning.split(/,\s*/g).map((m) => m.trim()).filter(Boolean);
+  if (currentCard.value?.type === "vocab") {
+    if (!wordDetails.value?.meaning) return [] as string[];
+    return wordDetails.value.meaning.split(/,\s*/g).map((m) => m.trim()).filter(Boolean);
+  }
+  if (!kanjiDetails.value?.meaning) return [] as string[];
+  return kanjiDetails.value.meaning.split(/,\s*/g).map((m) => m.trim()).filter(Boolean);
 });
 
 const maskReading = computed(() => {
-  if (!details.value) return "";
-  return pickMaskReading(details.value.kunyomi || [], details.value.onyomi || []);
+  if (currentCard.value?.type === "vocab") {
+    return wordDetails.value?.reading || "";
+  }
+  if (!kanjiDetails.value) return "";
+  return pickMaskReading(kanjiDetails.value.kunyomi || [], kanjiDetails.value.onyomi || []);
 });
 
 const sourceLinks = computed(() => {
   if (!currentCard.value) return [] as Array<{ label: string; href: string }>;
   const encoded = encodeURIComponent(currentCard.value.term);
   return [
-    { label: "Jisho", href: `https://jisho.org/search/${encoded}%23kanji` },
+    { label: "Jisho", href: `https://jisho.org/search/${encoded}` },
     { label: "KanjiVG", href: "https://kanjivg.tagaini.net/" },
   ];
 });
 
-const loadDetails = async (term: string) => {
-  details.value = await fetchKanjiDetails(term);
+const ensureCardExists = async (item: DeckItem) => {
+  const id = item.type === "kanji" ? `kanji:${item.term}` : `vocab:${item.term}`;
+  const existing = await db.cards.get(id);
+  if (existing) return existing;
+
+  const now = Date.now();
+  const newCard: Card = {
+    id,
+    type: item.type,
+    term: item.term,
+    reading: [],
+    meaning: [],
+    levels: [],
+    sources: ["custom"],
+    exampleIds: [],
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
+  };
+  await db.cards.put(newCard);
+  return newCard;
+};
+
+const syncDeckItems = async () => {
+  if (!selectedDeckId.value) return;
+  deckItems.value = await fetchDeckItems(selectedDeckId.value);
+  for (const item of deckItems.value) {
+    await ensureCardExists(item);
+  }
+};
+
+const loadDetailsForCard = async (card: Card) => {
+  kanjiDetails.value = null;
+  wordDetails.value = null;
+  if (card.type === "vocab") {
+    wordDetails.value = await fetchWordDetails(card.term);
+    return;
+  }
+  kanjiDetails.value = await fetchKanjiDetails(card.term);
+  await loadCompounds(card.term);
 };
 
 const loadExamples = async (term: string) => {
@@ -90,11 +146,26 @@ const loadNext = async () => {
   loading.value = true;
   revealed.value = false;
   message.value = "";
-  details.value = null;
+  kanjiDetails.value = null;
+  wordDetails.value = null;
   examples.value = [];
   compounds.value = [];
 
-  const item = await getNextQueueItem(db, Date.now(), levelTag.value);
+  let allowedIds: Set<string> | undefined;
+  let levelFilter: string | undefined;
+
+  if (selectedTaxonomy.value === "custom") {
+    await syncDeckItems();
+    allowedIds = new Set(
+      deckItems.value.map((item) =>
+        item.type === "kanji" ? `kanji:${item.term}` : `vocab:${item.term}`
+      )
+    );
+  } else {
+    levelFilter = levelTag.value;
+  }
+
+  const item = await getNextQueueItem(db, Date.now(), levelFilter, allowedIds);
   if (!item) {
     currentCard.value = null;
     currentState.value = null;
@@ -107,9 +178,8 @@ const loadNext = async () => {
   currentState.value = item.reviewState;
   queueReason.value = item.reason;
 
-  await loadDetails(item.card.term);
+  await loadDetailsForCard(item.card);
   await loadExamples(item.card.term);
-  await loadCompounds(item.card.term);
 
   loading.value = false;
 };
@@ -126,10 +196,20 @@ const onGrade = async (grade: Grade) => {
 };
 
 watch(levelTag, async () => {
-  await loadNext();
+  if (selectedTaxonomy.value !== "custom") {
+    await loadNext();
+  }
+});
+
+watch(selectedDeckId, async () => {
+  if (selectedTaxonomy.value === "custom") {
+    await loadNext();
+  }
 });
 
 onMounted(async () => {
+  decks.value = await fetchDecks();
+  if (decks.value.length > 0) selectedDeckId.value = decks.value[0].id;
   await loadNext();
 });
 </script>
@@ -157,15 +237,38 @@ onMounted(async () => {
             >
               Grade
             </button>
+            <button
+              class="btn"
+              :class="selectedTaxonomy === 'custom' ? 'btn-primary' : 'btn-outline-primary'"
+              @click="selectedTaxonomy = 'custom'"
+            >
+              Custom
+            </button>
           </div>
 
-          <select v-model="selectedLevel" class="form-select" style="max-width: 180px">
+          <select
+            v-if="selectedTaxonomy !== 'custom'"
+            v-model="selectedLevel"
+            class="form-select"
+            style="max-width: 180px"
+          >
             <option v-for="lvl in levelsForTaxonomy" :key="lvl.id" :value="lvl.id">
               {{ formatLevelLabel(lvl.taxonomy, lvl.id) }}
             </option>
           </select>
 
-          <span class="text-muted">Current deck: {{ levelTag }}</span>
+          <select
+            v-else
+            v-model="selectedDeckId"
+            class="form-select"
+            style="max-width: 240px"
+          >
+            <option v-for="deck in decks" :key="deck.id" :value="deck.id">
+              {{ deck.name }}
+            </option>
+          </select>
+
+          <span class="text-muted" v-if="selectedTaxonomy !== 'custom'">Current deck: {{ levelTag }}</span>
         </div>
       </div>
     </div>
@@ -201,8 +304,8 @@ onMounted(async () => {
           <CardBack
             v-else
             :term="currentCard.term"
-            :meta="details ? { strokeCount: details.strokeCount, jlptLevel: details.jlptLevel, taughtIn: details.taughtIn } : null"
-            :compounds="compounds"
+            :meta="kanjiDetails ? { strokeCount: kanjiDetails.strokeCount, jlptLevel: kanjiDetails.jlptLevel, taughtIn: kanjiDetails.taughtIn } : null"
+            :compounds="currentCard.type === 'kanji' ? compounds : []"
             :source-links="sourceLinks"
           />
         </div>

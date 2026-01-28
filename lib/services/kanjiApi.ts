@@ -8,6 +8,12 @@ export interface KanjiDetails {
   strokeCount: number | null;
 }
 
+export interface WordDetails {
+  term: string;
+  reading: string;
+  meaning: string;
+}
+
 export interface KanjiExample {
   text: string;
   reading: string;
@@ -24,6 +30,14 @@ export interface KanjiCompound {
 export const fetchKanjiDetails = async (term: string, refresh = false): Promise<KanjiDetails | null> => {
   try {
     return await $fetch(`/api/kanji/details?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}`);
+  } catch {
+    return null;
+  }
+};
+
+export const fetchWordDetails = async (term: string, refresh = false): Promise<WordDetails | null> => {
+  try {
+    return await $fetch(`/api/word/details?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}`);
   } catch {
     return null;
   }

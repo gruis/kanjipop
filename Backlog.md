@@ -17,3 +17,7 @@
 - [ ] Sync-ready data model / eventual sync.
 - [ ] Printable PDF / card export.
 - [ ] Per-kanji detail view enhancements (radicals, parts, frequency).
+- [ ] Multi-user support
+- [ ] Support search
+- [ ] Pre-load data
+- [ ] Mnemonic for each Kanji
