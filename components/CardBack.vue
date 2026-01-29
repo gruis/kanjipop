@@ -7,6 +7,7 @@ const props = defineProps<{
   meta: Pick<KanjiDetails, "strokeCount" | "jlptLevel" | "taughtIn"> | null;
   compounds: KanjiCompound[];
   mnemonics: KanjiMnemonic[];
+  kanjiLinks: string[];
   openMnemonics?: boolean;
   openCompounds?: boolean;
   sourceLinks: Array<{ label: string; href: string }>;
@@ -70,6 +71,21 @@ const renderMnemonic = (text: string) => {
 
     <div class="mt-3">
       <p v-if="metaLine" class="text-muted mb-3">{{ metaLine }}</p>
+
+      <div v-if="kanjiLinks.length" class="mb-3">
+        <div class="fw-semibold mb-1">Kanji</div>
+        <div class="d-flex flex-wrap gap-2">
+          <NuxtLink
+            v-for="kanji in kanjiLinks"
+            :key="kanji"
+            class="badge text-bg-light border text-decoration-none"
+            style="font-size: 1rem; padding: 0.4rem 0.6rem"
+            :to="`/cards/${encodeURIComponent(`kanji:${kanji}`)}`"
+          >
+            {{ kanji }}
+          </NuxtLink>
+        </div>
+      </div>
 
       <details class="mb-3" :open="openMnemonics">
         <summary class="fw-semibold">Mnemonics</summary>

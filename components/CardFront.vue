@@ -12,14 +12,20 @@ const props = defineProps<{
 
 const kunyomiLine = computed(() => props.readings.find((r) => r.startsWith("訓:")) || "");
 const onyomiLine = computed(() => props.readings.find((r) => r.startsWith("音:")) || "");
+const hasKanjiReadings = computed(() => Boolean(kunyomiLine.value || onyomiLine.value));
 </script>
 
 <template>
   <div>
     <div class="mb-4">
-      <div v-if="kunyomiLine" class="h4 fw-bold mb-1">{{ kunyomiLine }}</div>
-      <div v-if="onyomiLine" class="h4 fw-bold mb-1">{{ onyomiLine }}</div>
-      <div v-if="!kunyomiLine && !onyomiLine" class="h4 fw-bold mb-1">
+      <template v-if="hasKanjiReadings">
+        <div v-if="kunyomiLine" class="h4 fw-bold mb-1">{{ kunyomiLine }}</div>
+        <div v-if="onyomiLine" class="h4 fw-bold mb-1">{{ onyomiLine }}</div>
+      </template>
+      <template v-else-if="readings.length">
+        <div v-for="line in readings" :key="line" class="h4 fw-bold mb-1">{{ line }}</div>
+      </template>
+      <div v-else class="h4 fw-bold mb-1">
         (no readings yet)
       </div>
     </div>

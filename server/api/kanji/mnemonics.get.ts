@@ -3,9 +3,10 @@ import { getDb } from "~/server/db/kanjiCache";
 
 const WANIKANI_REVISION = "20170710";
 
-const fetchWaniKani = async (token: string, term: string) => {
+const fetchWaniKani = async (token: string, term: string, type: "kanji" | "vocabulary") => {
   const base = "https://api.wanikani.com/v2/subjects";
-  const makeUrl = (param: string) => `${base}?types=kanji&${param}=${encodeURIComponent(term)}`;
+  const makeUrl = (param: string) =>
+    `${base}?types=${type}&${param}=${encodeURIComponent(term)}`;
 
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -36,6 +37,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event);
   const term = typeof query.term === "string" ? query.term : "";
   const refresh = query.refresh === "1";
+  const requestedType = query.type === "vocab" ? "vocabulary" : query.type === "kanji" ? "kanji" : null;
 
   if (!term) {
     setResponseStatus(event, 400);
@@ -61,7 +63,18 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const mnemonics = await fetchWaniKani(token, term);
+    const isMultiChar = Array.from(term).length > 1;
+    const typeOrder: Array<"kanji" | "vocabulary"> = requestedType
+      ? [requestedType]
+      : isMultiChar
+        ? ["vocabulary", "kanji"]
+        : ["kanji", "vocabulary"];
+
+    let mnemonics: Array<{ kind: string; text: string }> = [];
+    for (const type of typeOrder) {
+      mnemonics = await fetchWaniKani(token, term, type);
+      if (mnemonics.length > 0) break;
+    }
     const now = Date.now();
 
     const deleteStmt = db.prepare("DELETE FROM mnemonics WHERE term = ? AND source = ?");

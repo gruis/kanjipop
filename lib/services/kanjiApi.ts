@@ -74,9 +74,16 @@ export const fetchKanjiCompounds = async (term: string, refresh = false): Promis
   }
 };
 
-export const fetchKanjiMnemonics = async (term: string, refresh = false): Promise<KanjiMnemonic[]> => {
+export const fetchKanjiMnemonics = async (
+  term: string,
+  refresh = false,
+  type?: "kanji" | "vocab"
+): Promise<KanjiMnemonic[]> => {
   try {
-    const res = await $fetch(`/api/kanji/mnemonics?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}`) as { results?: KanjiMnemonic[] };
+    const typeParam = type ? `&type=${type}` : "";
+    const res = await $fetch(
+      `/api/kanji/mnemonics?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}${typeParam}`
+    ) as { results?: KanjiMnemonic[] };
     return res?.results || [];
   } catch {
     return [];

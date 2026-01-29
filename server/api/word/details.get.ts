@@ -19,7 +19,8 @@ export default defineEventHandler(async (event) => {
     .prepare("SELECT * FROM word_details WHERE term = ?")
     .get(term) as any;
 
-  if (row && !refresh) {
+  if (row && !refresh && row.reading && row.meaning) {
+    console.log("[word/details] cache hit", { term, reading: row.reading, meaning: row.meaning });
     return {
       term: row.term,
       reading: row.reading || "",
@@ -31,12 +32,19 @@ export default defineEventHandler(async (event) => {
   try {
     const result = await jisho.searchForPhrase(term);
     const entry = result?.data?.[0];
-    const jp = entry?.japanese?.[0] || {};
+    const jpList = entry?.japanese || [];
+    const exact = jpList.find((item: any) => item?.word === term) || jpList[0] || {};
     const meaning = entry?.senses?.[0]?.english_definitions?.join("; ") || "";
+    console.log("[word/details] fetch", {
+      term,
+      jpList,
+      chosen: exact,
+      meaning,
+    });
 
     const payload = {
       term,
-      reading: jp.reading || "",
+      reading: exact.reading || "",
       meaning,
       updatedAt: Date.now(),
     };
@@ -53,7 +61,7 @@ export default defineEventHandler(async (event) => {
 
     return {
       term,
-      reading: jp.reading || "",
+      reading: exact.reading || "",
       meaning,
       cached: false,
     };

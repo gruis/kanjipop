@@ -7,11 +7,13 @@ import {
   fetchKanjiExamples,
   fetchKanjiCompounds,
   fetchKanjiMnemonics,
+  fetchWordDetails,
   addManualExample,
   type KanjiCompound,
   type KanjiDetails,
   type KanjiExample,
   type KanjiMnemonic,
+  type WordDetails,
 } from "~/lib/services/kanjiApi";
 import { pickMaskReading } from "~/lib/services/exampleMask";
 
@@ -28,6 +30,7 @@ const card = ref<Card | null>(null);
 const revealed = ref(false);
 
 const details = ref<KanjiDetails | null>(null);
+const wordDetails = ref<WordDetails | null>(null);
 const examples = ref<KanjiExample[]>([]);
 const compounds = ref<KanjiCompound[]>([]);
 const mnemonics = ref<KanjiMnemonic[]>([]);
@@ -41,7 +44,18 @@ const savingExample = ref(false);
 const newExampleText = ref("");
 const newExampleReading = ref("");
 
+const extractKanji = (term: string) =>
+  Array.from(term).filter((char) => /[\u3400-\u4DBF\u4E00-\u9FFF]/.test(char));
+
+const kanjiLinks = computed(() => {
+  if (!card.value || card.value.type !== "vocab") return [] as string[];
+  return extractKanji(card.value.term);
+});
+
 const readingLines = computed(() => {
+  if (card.value?.type === "vocab") {
+    return wordDetails.value?.reading ? [`読み: ${wordDetails.value.reading}`] : [];
+  }
   if (!details.value) return [] as string[];
   const lines: string[] = [];
   if (details.value.kunyomi?.length) lines.push(`訓: ${details.value.kunyomi.join(" / ")}`);
@@ -50,11 +64,18 @@ const readingLines = computed(() => {
 });
 
 const meaningLines = computed(() => {
+  if (card.value?.type === "vocab") {
+    if (!wordDetails.value?.meaning) return [] as string[];
+    return wordDetails.value.meaning.split(/,\s*/g).map((m) => m.trim()).filter(Boolean);
+  }
   if (!details.value?.meaning) return [] as string[];
   return details.value.meaning.split(/,\s*/g).map((m) => m.trim()).filter(Boolean);
 });
 
 const maskReading = computed(() => {
+  if (card.value?.type === "vocab") {
+    return wordDetails.value?.reading || "";
+  }
   if (!details.value) return "";
   return pickMaskReading(details.value.kunyomi || [], details.value.onyomi || []);
 });
@@ -62,12 +83,19 @@ const maskReading = computed(() => {
 const sourceLinks = computed(() => {
   if (!card.value) return [] as Array<{ label: string; href: string }>;
   const encoded = encodeURIComponent(card.value.term);
-  const links = [
-    { label: "Jisho", href: `https://jisho.org/search/${encoded}%23kanji` },
-    { label: "KanjiVG", href: "https://kanjivg.tagaini.net/" },
-  ];
+  const links =
+    card.value.type === "vocab"
+      ? [
+          { label: "Jisho", href: `https://jisho.org/word/${encoded}` },
+          { label: "KanjiVG", href: "https://kanjivg.tagaini.net/" },
+        ]
+      : [
+          { label: "Jisho", href: `https://jisho.org/search/${encoded}%23kanji` },
+          { label: "KanjiVG", href: "https://kanjivg.tagaini.net/" },
+        ];
   if (mnemonics.value.some((m) => m.source === "wanikani")) {
-    links.push({ label: "WaniKani", href: `https://www.wanikani.com/kanji/${encoded}` });
+    const wkPath = card.value.type === "vocab" ? "vocabulary" : "kanji";
+    links.push({ label: "WaniKani", href: `https://www.wanikani.com/${wkPath}/${encoded}` });
   }
   return links;
 });
@@ -99,10 +127,10 @@ const loadCompounds = async (term: string, refresh = false) => {
   }
 };
 
-const loadMnemonics = async (term: string, refresh = false) => {
+const loadMnemonics = async (term: string, refresh = false, type?: "kanji" | "vocab") => {
   fetchingMnemonics.value = true;
   try {
-    mnemonics.value = await fetchKanjiMnemonics(term, refresh);
+    mnemonics.value = await fetchKanjiMnemonics(term, refresh, type);
   } finally {
     fetchingMnemonics.value = false;
   }
@@ -142,12 +170,20 @@ const loadCard = async () => {
   card.value = found;
 
   if (found) {
-    await loadDetails(found.term);
-    await loadExamples(found.term);
+    if (found.type === "vocab") {
+      wordDetails.value = await fetchWordDetails(found.term);
+      console.log("[cards] vocab details", { term: found.term, wordDetails: wordDetails.value });
+      details.value = null;
+    } else {
+      await loadDetails(found.term);
+      wordDetails.value = null;
+    }
     await loadCompounds(found.term);
-    await loadMnemonics(found.term);
+    await loadMnemonics(found.term, false, found.type === "vocab" ? "vocab" : "kanji");
+    await loadExamples(found.term);
   } else {
     details.value = null;
+    wordDetails.value = null;
     examples.value = [];
     compounds.value = [];
     mnemonics.value = [];
@@ -210,6 +246,7 @@ watch(
             :meta="details ? { strokeCount: details.strokeCount, jlptLevel: details.jlptLevel, taughtIn: details.taughtIn } : null"
             :compounds="compounds"
             :mnemonics="mnemonics"
+            :kanji-links="kanjiLinks"
             :open-mnemonics="true"
             :open-compounds="true"
             :source-links="sourceLinks"
@@ -244,7 +281,7 @@ watch(
           <button
             class="btn btn-outline-secondary"
             :disabled="fetchingMnemonics"
-            @click="card && loadMnemonics(card.term, true)"
+            @click="card && loadMnemonics(card.term, true, card.type === 'vocab' ? 'vocab' : 'kanji')"
           >
             {{ fetchingMnemonics ? "Refreshing..." : "Refresh mnemonics" }}
           </button>

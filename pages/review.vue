@@ -49,6 +49,14 @@ const levelsForTaxonomy = computed(() =>
   levelOptions.filter((lvl) => lvl.taxonomy === selectedTaxonomy.value)
 );
 
+const extractKanji = (term: string) =>
+  Array.from(term).filter((char) => /[\u3400-\u4DBF\u4E00-\u9FFF]/.test(char));
+
+const kanjiLinks = computed(() => {
+  if (!currentCard.value || currentCard.value.type !== "vocab") return [] as string[];
+  return extractKanji(currentCard.value.term);
+});
+
 watch(
   () => selectedTaxonomy.value,
   async () => {
@@ -104,12 +112,19 @@ const maskReading = computed(() => {
 const sourceLinks = computed(() => {
   if (!currentCard.value) return [] as Array<{ label: string; href: string }>;
   const encoded = encodeURIComponent(currentCard.value.term);
-  const links = [
-    { label: "Jisho", href: `https://jisho.org/search/${encoded}` },
-    { label: "KanjiVG", href: "https://kanjivg.tagaini.net/" },
-  ];
+  const links =
+    currentCard.value.type === "vocab"
+      ? [
+          { label: "Jisho", href: `https://jisho.org/word/${encoded}` },
+          { label: "KanjiVG", href: "https://kanjivg.tagaini.net/" },
+        ]
+      : [
+          { label: "Jisho", href: `https://jisho.org/search/${encoded}%23kanji` },
+          { label: "KanjiVG", href: "https://kanjivg.tagaini.net/" },
+        ];
   if (mnemonics.value.some((m) => m.source === "wanikani")) {
-    links.push({ label: "WaniKani", href: `https://www.wanikani.com/kanji/${encoded}` });
+    const wkPath = currentCard.value.type === "vocab" ? "vocabulary" : "kanji";
+    links.push({ label: "WaniKani", href: `https://www.wanikani.com/${wkPath}/${encoded}` });
   }
   return links;
 });
@@ -151,11 +166,13 @@ const loadDetailsForCard = async (card: Card) => {
   mnemonics.value = [];
   if (card.type === "vocab") {
     wordDetails.value = await fetchWordDetails(card.term);
+    await loadCompounds(card.term);
+    await loadMnemonics(card.term, "vocab");
     return;
   }
   kanjiDetails.value = await fetchKanjiDetails(card.term);
   await loadCompounds(card.term);
-  await loadMnemonics(card.term);
+  await loadMnemonics(card.term, "kanji");
 };
 
 const loadExamples = async (term: string) => {
@@ -166,8 +183,8 @@ const loadCompounds = async (term: string) => {
   compounds.value = await fetchKanjiCompounds(term);
 };
 
-const loadMnemonics = async (term: string) => {
-  mnemonics.value = await fetchKanjiMnemonics(term);
+const loadMnemonics = async (term: string, type?: "kanji" | "vocab") => {
+  mnemonics.value = await fetchKanjiMnemonics(term, false, type);
 };
 
 const loadNext = async () => {
@@ -353,6 +370,7 @@ onMounted(async () => {
             :meta="kanjiDetails ? { strokeCount: kanjiDetails.strokeCount, jlptLevel: kanjiDetails.jlptLevel, taughtIn: kanjiDetails.taughtIn } : null"
             :compounds="currentCard.type === 'kanji' ? compounds : []"
             :mnemonics="currentCard.type === 'kanji' ? mnemonics : []"
+            :kanji-links="kanjiLinks"
             :source-links="sourceLinks"
           />
         </div>
