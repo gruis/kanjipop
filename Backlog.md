@@ -22,3 +22,6 @@
 - [ ] Show Wanikani level
 - [ ] Heatmap describing days practiced and overall progress.
 - [ ] Deployment as a container
+- [ ] Control order of cards in the deck; order that new ones will be shown.
+      Basically I want the school year decks to progress new kanji in the order that
+      they are given in class.

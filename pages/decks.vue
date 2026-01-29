@@ -2,6 +2,9 @@
 import { flattenLevels, formatLevelLabel } from "~/lib/data/levelMeta";
 import { createDeck, fetchDecks, fetchDeckItems, type DeckItem, type DeckSummary } from "~/lib/services/decksApi";
 
+const route = useRoute();
+const router = useRouter();
+
 const seeded = ref(false);
 const activeTaxonomy = ref<"jlpt" | "grade" | "custom">("jlpt");
 const search = ref("");
@@ -59,6 +62,8 @@ const selectedCustomDeck = computed(() => {
 const kanjiCardPath = (kanji: string) => `/cards/${encodeURIComponent(`kanji:${kanji}`)}`;
 
 const deckStats = ref<Record<string, { total: number; new: number; learning: number; review: number; relearn: number }>>({});
+const customDeckStats = ref<Record<string, { total: number; new: number; learning: number; review: number; relearn: number }>>({});
+const stateMap = ref<Record<string, string>>({});
 
 const loadDeckStats = async () => {
   if (activeTaxonomy.value === "custom") return;
@@ -66,6 +71,34 @@ const loadDeckStats = async () => {
     `/api/review/stats?taxonomy=${activeTaxonomy.value}`
   );
   deckStats.value = res.stats || {};
+};
+
+const loadCustomDeckStats = async () => {
+  const res = await $fetch<{ stats: Record<string, { total: number; new: number; learning: number; review: number; relearn: number }> }>(
+    "/api/decks/stats"
+  );
+  customDeckStats.value = res.stats || {};
+};
+
+const loadStateMap = async (ids: string[]) => {
+  if (ids.length === 0) {
+    stateMap.value = {};
+    return;
+  }
+  const res = await $fetch<{ states: Record<string, string> }>(
+    `/api/review/state?ids=${encodeURIComponent(ids.join(","))}`
+  );
+  stateMap.value = res.states || {};
+};
+
+const chipClassForCard = (cardId: string) => {
+  const state = stateMap.value[cardId] || "new";
+  return {
+    "chip-state-new": state === "new",
+    "chip-state-learning": state === "learning",
+    "chip-state-review": state === "review",
+    "chip-state-relearn": state === "relearn",
+  };
 };
 
 const percent = (count: number, total: number) => (total ? Math.round((count / total) * 100) : 0);
@@ -83,6 +116,14 @@ const loadDeckItems = async () => {
     return;
   }
   selectedDeckItems.value = await fetchDeckItems(selectedDeckId.value);
+  if (activeTaxonomy.value === "custom") {
+    if (selectedDeckItems.value.length > 0) {
+      const ids = selectedDeckItems.value.map((item) => `${item.type}:${item.term}`);
+      await loadStateMap(ids);
+    } else {
+      stateMap.value = {};
+    }
+  }
 };
 
 const onCreateDeck = async () => {
@@ -107,16 +148,39 @@ const onCreateDeck = async () => {
   }
 };
 
+const setTaxonomy = async (taxonomy: "jlpt" | "grade" | "custom") => {
+  activeTaxonomy.value = taxonomy;
+  await router.replace({ query: { ...route.query, taxonomy } });
+};
+
 onMounted(async () => {
   await $fetch("/api/cards/seed");
   seeded.value = true;
+  const requestedTaxonomy = typeof route.query.taxonomy === "string" ? route.query.taxonomy : "";
+  if (requestedTaxonomy === "jlpt" || requestedTaxonomy === "grade" || requestedTaxonomy === "custom") {
+    activeTaxonomy.value = requestedTaxonomy;
+  }
   if (!selectedLevel.value && filteredLevels.value.length > 0) {
     selectedLevel.value = filteredLevels.value[0].id;
   }
   await loadDeckStats();
+  await loadCustomDeckStats();
   await loadDecks();
   await loadDeckItems();
+  if (selected.value) {
+    await loadStateMap(selected.value.kanji.map((k) => `kanji:${k}`));
+  }
 });
+
+watch(
+  () => route.query.taxonomy,
+  (taxonomy) => {
+    if (typeof taxonomy !== "string") return;
+    if (taxonomy === "jlpt" || taxonomy === "grade" || taxonomy === "custom") {
+      activeTaxonomy.value = taxonomy;
+    }
+  }
+);
 
 watch([activeTaxonomy, search], async () => {
   if (activeTaxonomy.value !== "custom") {
@@ -127,11 +191,29 @@ watch([activeTaxonomy, search], async () => {
       selectedLevel.value = filteredLevels.value[0]?.id || null;
     }
     await loadDeckStats();
+    await loadCustomDeckStats();
+    if (selected.value) {
+      await loadStateMap(selected.value.kanji.map((k) => `kanji:${k}`));
+    }
+  } else {
+    await loadDeckItems();
   }
 });
 
 watch(selectedDeckId, async () => {
   await loadDeckItems();
+  if (selectedDeckItems.value.length > 0) {
+    const ids = selectedDeckItems.value.map((item) => `${item.type}:${item.term}`);
+    await loadStateMap(ids);
+  } else {
+    stateMap.value = {};
+  }
+});
+
+watch(selectedLevel, async () => {
+  if (selected.value) {
+    await loadStateMap(selected.value.kanji.map((k) => `kanji:${k}`));
+  }
 });
 </script>
 
@@ -147,21 +229,21 @@ watch(selectedDeckId, async () => {
         <button
           class="btn"
           :class="activeTaxonomy === 'jlpt' ? 'btn-primary' : 'btn-outline-primary'"
-          @click="activeTaxonomy = 'jlpt'"
+          @click="setTaxonomy('jlpt')"
         >
           JLPT
         </button>
         <button
           class="btn"
           :class="activeTaxonomy === 'grade' ? 'btn-primary' : 'btn-outline-primary'"
-          @click="activeTaxonomy = 'grade'"
+          @click="setTaxonomy('grade')"
         >
           Grade
         </button>
         <button
           class="btn"
           :class="activeTaxonomy === 'custom' ? 'btn-primary' : 'btn-outline-primary'"
-          @click="activeTaxonomy = 'custom'"
+          @click="setTaxonomy('custom')"
         >
           Custom
         </button>
@@ -261,6 +343,24 @@ watch(selectedDeckId, async () => {
                     @click="selectedDeckId = deck.id"
                   >
                     <div class="fw-semibold">{{ deck.name }}</div>
+                    <div class="progress mt-2" style="height: 6px">
+                      <div
+                        class="progress-bar bg-secondary"
+                        :style="{ width: percent(customDeckStats[deck.id]?.new || 0, customDeckStats[deck.id]?.total || 0) + '%' }"
+                      ></div>
+                      <div
+                        class="progress-bar bg-warning"
+                        :style="{ width: percent(customDeckStats[deck.id]?.learning || 0, customDeckStats[deck.id]?.total || 0) + '%' }"
+                      ></div>
+                      <div
+                        class="progress-bar bg-success"
+                        :style="{ width: percent(customDeckStats[deck.id]?.review || 0, customDeckStats[deck.id]?.total || 0) + '%' }"
+                      ></div>
+                      <div
+                        class="progress-bar bg-danger"
+                        :style="{ width: percent(customDeckStats[deck.id]?.relearn || 0, customDeckStats[deck.id]?.total || 0) + '%' }"
+                      ></div>
+                    </div>
                   </button>
                 </div>
                 <button class="btn btn-outline-secondary mt-3" @click="showCreateForm = true">
@@ -315,8 +415,9 @@ watch(selectedDeckId, async () => {
                 <NuxtLink
                   v-for="k in selected.kanji"
                   :key="k"
-                  class="badge text-bg-light border text-decoration-none"
+                  class="badge text-bg-light border text-decoration-none deck-chip"
                   style="font-size: 1.1rem; padding: 0.5rem 0.75rem"
+                  :class="chipClassForCard(`kanji:${k}`)"
                   :to="kanjiCardPath(k)"
                 >
                   {{ k }}
@@ -355,8 +456,9 @@ watch(selectedDeckId, async () => {
                   <NuxtLink
                     v-for="item in selectedDeckItems"
                     :key="`${item.type}:${item.term}`"
-                    class="badge text-bg-light border text-decoration-none"
+                    class="badge text-bg-light border text-decoration-none deck-chip"
                     style="font-size: 1rem; padding: 0.4rem 0.6rem"
+                    :class="chipClassForCard(`${item.type}:${item.term}`)"
                     :to="`/cards/${encodeURIComponent(`${item.type}:${item.term}`)}`"
                   >
                     {{ item.term }}
@@ -370,3 +472,24 @@ watch(selectedDeckId, async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.deck-chip {
+  --chip-accent: transparent;
+  background-image: linear-gradient(transparent calc(100% - 4px), var(--chip-accent) 0);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+.chip-state-new {
+  --chip-accent: transparent;
+}
+.chip-state-learning {
+  --chip-accent: #ffc107;
+}
+.chip-state-review {
+  --chip-accent: #198754;
+}
+.chip-state-relearn {
+  --chip-accent: #dc3545;
+}
+</style>

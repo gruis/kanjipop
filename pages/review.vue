@@ -122,11 +122,13 @@ const loadDetailsForCard = async (card: Card) => {
     wordDetails.value = await fetchWordDetails(card.term);
     await loadCompounds(card.term);
     await loadMnemonics(card.term, "vocab");
+    await loadExamples(card.term);
     return;
   }
   kanjiDetails.value = await fetchKanjiDetails(card.term);
   await loadCompounds(card.term);
   await loadMnemonics(card.term, "kanji");
+  await loadExamples(card.term);
 };
 
 const loadExamples = async (term: string) => {
@@ -184,7 +186,6 @@ const loadNext = async () => {
   queueReason.value = result.reason;
 
   await loadDetailsForCard(result.card);
-  await loadExamples(result.card.term);
 
   loading.value = false;
 };

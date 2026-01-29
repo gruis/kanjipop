@@ -1,14 +1,31 @@
 import { getQuery } from "h3";
 import { getDb } from "~/server/db/kanjiCache";
 import { seedCardsIfEmpty } from "~/server/seed/seedCards";
-import { rowToCard } from "~/server/utils/cards";
+import { buildCard, cardToRow, rowToCard } from "~/server/utils/cards";
 import { rowToReviewState } from "~/server/utils/review";
 
 const getAllowedIdsForDeck = (db: any, deckId: string) => {
   const items = db
     .prepare("SELECT term, type FROM deck_items WHERE deckId = ?")
     .all(deckId) as Array<{ term: string; type: "kanji" | "vocab" }>;
-  return new Set(items.map((item) => `${item.type}:${item.term}`));
+  const ids = new Set(items.map((item) => `${item.type}:${item.term}`));
+
+  if (items.length > 0) {
+    const insertCard = db.prepare(
+      `INSERT OR IGNORE INTO cards (id, type, term, reading, meaning, levels, sources, exampleIds, createdAt, updatedAt, version)
+       VALUES (@id, @type, @term, @reading, @meaning, @levels, @sources, @exampleIds, @createdAt, @updatedAt, @version)`
+    );
+    const now = Date.now();
+    const tx = db.transaction(() => {
+      for (const item of items) {
+        const id = `${item.type}:${item.term}`;
+        insertCard.run(cardToRow(buildCard(id, item.type, item.term, now)));
+      }
+    });
+    tx();
+  }
+
+  return ids;
 };
 
 export default defineEventHandler((event) => {
