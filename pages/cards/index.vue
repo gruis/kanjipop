@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import type { Card } from "~/lib/db/schema";
-import { seedKanjiIfEmpty } from "~/lib/seed/seedKanji";
 
-const db = useDb();
 const loading = ref(true);
 const search = ref("");
-const searchPlaceholder = "語";
 const typeFilter = ref<"all" | "kanji" | "vocab" | "custom">("kanji");
 const cards = ref<Card[]>([]);
 
@@ -13,27 +10,20 @@ const includesTerm = (card: Card, term: string) => {
   if (!term) return true;
   const lower = term.toLowerCase();
   if (card.term.includes(term)) return true;
-  if (card.reading.some((r) => r.toLowerCase().includes(lower))) return true;
-  if (card.meaning.some((m) => m.toLowerCase().includes(lower))) return true;
+  if ((card.reading || []).some((r) => r.toLowerCase().includes(lower))) return true;
+  if ((card.meaning || []).some((m) => m.toLowerCase().includes(lower))) return true;
   return false;
 };
 
 const loadCards = async () => {
   loading.value = true;
-  await seedKanjiIfEmpty(db);
+  await $fetch("/api/cards/seed");
+
+  const typeParam = typeFilter.value === "all" ? "" : `type=${encodeURIComponent(typeFilter.value)}`;
+  const res = await $fetch<{ cards: Card[] }>(`/api/cards${typeParam ? `?${typeParam}` : ""}`);
 
   const term = search.value.trim();
-  let collection = db.cards.toCollection();
-
-  if (typeFilter.value !== "all") {
-    collection = db.cards.where("type").equals(typeFilter.value);
-  }
-
-  const results = term
-    ? await collection.filter((card) => includesTerm(card, term)).toArray()
-    : await collection.toArray();
-
-  cards.value = results;
+  cards.value = term ? res.cards.filter((card) => includesTerm(card, term)) : res.cards;
   loading.value = false;
 };
 
@@ -87,13 +77,7 @@ onMounted(async () => {
 
       <div class="input-group" style="max-width: 320px">
         <span class="input-group-text">Search</span>
-        <input
-          v-model="search"
-          class="form-control"
-          :placeholder="searchPlaceholder"
-          @focus="($event.target as HTMLInputElement).placeholder = ''"
-          @blur="($event.target as HTMLInputElement).placeholder = searchPlaceholder"
-        />
+        <input v-model="search" class="form-control" placeholder="語" />
       </div>
 
       <span class="text-muted">{{ loading ? "Loading..." : `${cards.length} cards` }}</span>

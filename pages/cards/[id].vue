@@ -21,7 +21,6 @@ definePageMeta({
   ssr: false,
 });
 
-const db = useDb();
 const route = useRoute();
 const router = useRouter();
 
@@ -161,26 +160,29 @@ const goBack = () => {
 };
 
 const loadCard = async () => {
-  if (!process.client) return;
   loading.value = true;
   const rawId = String(route.params.id || "");
   const id = decodeURIComponent(rawId);
-  const found = id ? await db.cards.get(id) : null;
 
-  card.value = found;
+  await $fetch("/api/cards/seed");
+  try {
+    const res = await $fetch<{ card: Card }>(`/api/cards/${encodeURIComponent(id)}`);
+    card.value = res.card || null;
+  } catch {
+    card.value = null;
+  }
 
-  if (found) {
-    if (found.type === "vocab") {
-      wordDetails.value = await fetchWordDetails(found.term);
-      console.log("[cards] vocab details", { term: found.term, wordDetails: wordDetails.value });
+  if (card.value) {
+    if (card.value.type === "vocab") {
+      wordDetails.value = await fetchWordDetails(card.value.term);
       details.value = null;
     } else {
-      await loadDetails(found.term);
+      await loadDetails(card.value.term);
       wordDetails.value = null;
     }
-    await loadCompounds(found.term);
-    await loadMnemonics(found.term, false, found.type === "vocab" ? "vocab" : "kanji");
-    await loadExamples(found.term);
+    await loadCompounds(card.value.term);
+    await loadMnemonics(card.value.term, false, card.value.type === "vocab" ? "vocab" : "kanji");
+    await loadExamples(card.value.term);
   } else {
     details.value = null;
     wordDetails.value = null;

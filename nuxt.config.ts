@@ -10,4 +10,9 @@ export default defineNuxtConfig({
   typescript: {
     strict: true,
   },
+  vite: {
+    server: {
+      allowedHosts: ["d32bba38db87.ngrok-free.app"],
+    },
+  },
 });

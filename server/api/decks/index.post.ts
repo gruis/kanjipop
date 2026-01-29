@@ -1,5 +1,6 @@
 import { readBody, setResponseStatus } from "h3";
 import { getDb } from "~/server/db/kanjiCache";
+import { cardToRow } from "~/server/utils/cards";
 
 const splitTerms = (input: string) => {
   return input
@@ -47,11 +48,31 @@ export default defineEventHandler(async (event) => {
   const insertItem = db.prepare(
     "INSERT OR IGNORE INTO deck_items (deckId, term, type, createdAt) VALUES (?, ?, ?, ?)"
   );
+  const insertCard = db.prepare(
+    `INSERT OR IGNORE INTO cards (id, type, term, reading, meaning, levels, sources, exampleIds, createdAt, updatedAt, version)
+     VALUES (@id, @type, @term, @reading, @meaning, @levels, @sources, @exampleIds, @createdAt, @updatedAt, @version)`
+  );
 
   const tx = db.transaction(() => {
     insertDeck.run(deckId, name, now);
     for (const [term, type] of items.entries()) {
       insertItem.run(deckId, term, type, now);
+      const cardId = `${type}:${term}`;
+      insertCard.run(
+        cardToRow({
+          id: cardId,
+          type,
+          term,
+          reading: [],
+          meaning: [],
+          levels: [],
+          sources: ["custom"],
+          exampleIds: [],
+          createdAt: now,
+          updatedAt: now,
+          version: 1,
+        })
+      );
     }
   });
 

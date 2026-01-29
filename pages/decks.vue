@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { seedKanjiIfEmpty } from "~/lib/seed/seedKanji";
 import { flattenLevels, formatLevelLabel } from "~/lib/data/levelMeta";
 import { createDeck, fetchDecks, fetchDeckItems, type DeckItem, type DeckSummary } from "~/lib/services/decksApi";
 
-const db = useDb();
 const seeded = ref(false);
 const activeTaxonomy = ref<"jlpt" | "grade" | "custom">("jlpt");
 const search = ref("");
@@ -62,39 +60,12 @@ const kanjiCardPath = (kanji: string) => `/cards/${encodeURIComponent(`kanji:${k
 
 const deckStats = ref<Record<string, { total: number; new: number; learning: number; review: number; relearn: number }>>({});
 
-const computeDeckStats = async () => {
+const loadDeckStats = async () => {
   if (activeTaxonomy.value === "custom") return;
-  const reviewStates = await db.reviewStates.toArray();
-  const stateByCard = new Map(reviewStates.map((s) => [s.cardId, s.state]));
-
-  const stats: Record<string, { total: number; new: number; learning: number; review: number; relearn: number }> = {};
-
-  for (const level of levelsForTaxonomy.value) {
-    const key = `${level.taxonomy}:${level.id}`;
-    let total = 0;
-    let newCount = 0;
-    let learning = 0;
-    let review = 0;
-    let relearn = 0;
-
-    for (const k of level.kanji) {
-      total += 1;
-      const state = stateByCard.get(`kanji:${k}`);
-      if (!state) {
-        newCount += 1;
-      } else if (state === "learning") {
-        learning += 1;
-      } else if (state === "review") {
-        review += 1;
-      } else if (state === "relearn") {
-        relearn += 1;
-      }
-    }
-
-    stats[key] = { total, new: newCount, learning, review, relearn };
-  }
-
-  deckStats.value = stats;
+  const res = await $fetch<{ stats: Record<string, { total: number; new: number; learning: number; review: number; relearn: number }> }>(
+    `/api/review/stats?taxonomy=${activeTaxonomy.value}`
+  );
+  deckStats.value = res.stats || {};
 };
 
 const percent = (count: number, total: number) => (total ? Math.round((count / total) * 100) : 0);
@@ -137,12 +108,12 @@ const onCreateDeck = async () => {
 };
 
 onMounted(async () => {
-  await seedKanjiIfEmpty(db);
+  await $fetch("/api/cards/seed");
   seeded.value = true;
   if (!selectedLevel.value && filteredLevels.value.length > 0) {
     selectedLevel.value = filteredLevels.value[0].id;
   }
-  await computeDeckStats();
+  await loadDeckStats();
   await loadDecks();
   await loadDeckItems();
 });
@@ -155,7 +126,7 @@ watch([activeTaxonomy, search], async () => {
     if (selectedLevel.value && !filteredLevels.value.find((lvl) => lvl.id === selectedLevel.value)) {
       selectedLevel.value = filteredLevels.value[0]?.id || null;
     }
-    await computeDeckStats();
+    await loadDeckStats();
   }
 });
 

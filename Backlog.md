@@ -17,6 +17,8 @@
 - [ ] Sync-ready data model / eventual sync.
 - [ ] Printable PDF / card export.
 - [ ] Per-kanji detail view enhancements (radicals, parts, frequency).
-- [ ] Multi-user support
+- [ ] Multi-user support (priority)
 - [ ] Pre-load data
 - [ ] Show Wanikani level
+- [ ] Heatmap describing days practiced and overall progress.
+- [ ] Deployment as a container

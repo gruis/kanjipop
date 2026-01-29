@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import type { Card, ReviewState } from "~/lib/db/schema";
-import { getNextQueueItem } from "~/lib/srs/queue";
-import { reviewCard } from "~/lib/srs/review";
 import type { Grade } from "~/lib/srs/fsrs";
 import CardFront from "~/components/CardFront.vue";
 import CardBack from "~/components/CardBack.vue";
@@ -19,10 +17,10 @@ import {
 } from "~/lib/services/kanjiApi";
 import { pickMaskReading } from "~/lib/services/exampleMask";
 import { flattenLevels, formatLevelLabel } from "~/lib/data/levelMeta";
-import { fetchDecks, fetchDeckItems, type DeckItem, type DeckSummary } from "~/lib/services/decksApi";
+import { fetchDecks, type DeckSummary } from "~/lib/services/decksApi";
 
-const db = useDb();
 const route = useRoute();
+
 const loading = ref(true);
 const currentCard = ref<Card | null>(null);
 const currentState = ref<ReviewState | null>(null);
@@ -41,7 +39,6 @@ const selectedTaxonomy = ref<"jlpt" | "grade" | "custom">("jlpt");
 const selectedLevel = ref<string>("N5");
 const decks = ref<DeckSummary[]>([]);
 const selectedDeckId = ref<string>("");
-const deckItems = ref<DeckItem[]>([]);
 
 const levelTag = computed(() => `${selectedTaxonomy.value}:${selectedLevel.value}`);
 
@@ -59,7 +56,7 @@ const kanjiLinks = computed(() => {
 
 watch(
   () => selectedTaxonomy.value,
-  async () => {
+  () => {
     if (selectedTaxonomy.value === "custom") return;
     const levelIds = levelsForTaxonomy.value.map((lvl) => lvl.id);
     if (selectedLevel.value && levelIds.includes(selectedLevel.value)) return;
@@ -67,18 +64,6 @@ watch(
     if (first) selectedLevel.value = first.id;
   },
   { immediate: true }
-);
-
-watch(
-  () => selectedTaxonomy.value,
-  async () => {
-    if (selectedTaxonomy.value !== "custom") return;
-    decks.value = await fetchDecks();
-    if (!selectedDeckId.value && decks.value.length > 0) {
-      selectedDeckId.value = decks.value[0].id;
-    }
-    await loadNext();
-  }
 );
 
 const readingLines = computed(() => {
@@ -129,37 +114,6 @@ const sourceLinks = computed(() => {
   return links;
 });
 
-const ensureCardExists = async (item: DeckItem) => {
-  const id = item.type === "kanji" ? `kanji:${item.term}` : `vocab:${item.term}`;
-  const existing = await db.cards.get(id);
-  if (existing) return existing;
-
-  const now = Date.now();
-  const newCard: Card = {
-    id,
-    type: item.type,
-    term: item.term,
-    reading: [],
-    meaning: [],
-    levels: [],
-    sources: ["custom"],
-    exampleIds: [],
-    createdAt: now,
-    updatedAt: now,
-    version: 1,
-  };
-  await db.cards.put(newCard);
-  return newCard;
-};
-
-const syncDeckItems = async () => {
-  if (!selectedDeckId.value) return;
-  deckItems.value = await fetchDeckItems(selectedDeckId.value);
-  for (const item of deckItems.value) {
-    await ensureCardExists(item);
-  }
-};
-
 const loadDetailsForCard = async (card: Card) => {
   kanjiDetails.value = null;
   wordDetails.value = null;
@@ -197,9 +151,7 @@ const loadNext = async () => {
   compounds.value = [];
   mnemonics.value = [];
 
-  let allowedIds: Set<string> | undefined;
-  let levelFilter: string | undefined;
-
+  const params = new URLSearchParams();
   if (selectedTaxonomy.value === "custom") {
     if (!selectedDeckId.value) {
       currentCard.value = null;
@@ -208,18 +160,18 @@ const loadNext = async () => {
       loading.value = false;
       return;
     }
-    await syncDeckItems();
-    allowedIds = new Set(
-      deckItems.value.map((item) =>
-        item.type === "kanji" ? `kanji:${item.term}` : `vocab:${item.term}`
-      )
-    );
+    params.set("taxonomy", "custom");
+    params.set("deckId", selectedDeckId.value);
   } else {
-    levelFilter = levelTag.value;
+    params.set("taxonomy", selectedTaxonomy.value);
+    params.set("level", selectedLevel.value);
   }
 
-  const item = await getNextQueueItem(db, Date.now(), levelFilter, allowedIds);
-  if (!item) {
+  const result = await $fetch<{ card: Card | null; reviewState: ReviewState | null; reason: "due" | "new" }>(
+    `/api/review/next?${params}`
+  );
+
+  if (!result.card) {
     currentCard.value = null;
     currentState.value = null;
     queueReason.value = null;
@@ -227,21 +179,23 @@ const loadNext = async () => {
     return;
   }
 
-  currentCard.value = item.card;
-  currentState.value = item.reviewState;
-  queueReason.value = item.reason;
+  currentCard.value = result.card;
+  currentState.value = result.reviewState;
+  queueReason.value = result.reason;
 
-  await loadDetailsForCard(item.card);
-  await loadExamples(item.card.term);
+  await loadDetailsForCard(result.card);
+  await loadExamples(result.card.term);
 
   loading.value = false;
 };
 
 const onGrade = async (grade: Grade) => {
   if (!currentCard.value) return;
-  const now = Date.now();
   try {
-    await reviewCard(db, currentCard.value, currentState.value, grade, now);
+    await $fetch("/api/review/grade", {
+      method: "POST",
+      body: { cardId: currentCard.value.id, grade },
+    });
     await loadNext();
   } catch (err) {
     message.value = `Failed to record review: ${String(err)}`;
@@ -260,11 +214,26 @@ watch(selectedDeckId, async () => {
   }
 });
 
+watch(
+  () => selectedTaxonomy.value,
+  async () => {
+    if (selectedTaxonomy.value !== "custom") return;
+    decks.value = await fetchDecks();
+    if (!selectedDeckId.value && decks.value.length > 0) {
+      selectedDeckId.value = decks.value[0].id;
+    }
+    await loadNext();
+  }
+);
+
 onMounted(async () => {
+  await $fetch("/api/cards/seed");
   decks.value = await fetchDecks();
+
   const requestedTaxonomy = typeof route.query.taxonomy === "string" ? route.query.taxonomy : "";
   const requestedDeckId = typeof route.query.deckId === "string" ? route.query.deckId : "";
   const requestedLevel = typeof route.query.level === "string" ? route.query.level : "";
+
   if (requestedTaxonomy === "custom") {
     selectedTaxonomy.value = "custom";
     if (requestedDeckId) selectedDeckId.value = requestedDeckId;
@@ -272,6 +241,7 @@ onMounted(async () => {
     selectedTaxonomy.value = requestedTaxonomy;
     if (requestedLevel) selectedLevel.value = requestedLevel;
   }
+
   if (!selectedDeckId.value && decks.value.length > 0) selectedDeckId.value = decks.value[0].id;
   await loadNext();
 });
@@ -368,8 +338,8 @@ onMounted(async () => {
             v-else
             :term="currentCard.term"
             :meta="kanjiDetails ? { strokeCount: kanjiDetails.strokeCount, jlptLevel: kanjiDetails.jlptLevel, taughtIn: kanjiDetails.taughtIn } : null"
-            :compounds="currentCard.type === 'kanji' ? compounds : []"
-            :mnemonics="currentCard.type === 'kanji' ? mnemonics : []"
+            :compounds="compounds"
+            :mnemonics="mnemonics"
             :kanji-links="kanjiLinks"
             :source-links="sourceLinks"
           />

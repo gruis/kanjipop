@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import { resetDatabase } from "~/lib/db/reset";
 import { fetchWaniKaniTokenStatus, saveWaniKaniToken, type WaniKaniTokenStatus } from "~/lib/services/settingsApi";
-
-const db = useDb();
 const isResetting = ref(false);
 const message = ref("");
 
@@ -18,8 +15,8 @@ const onReset = async () => {
   isResetting.value = true;
   message.value = "";
   try {
-    await resetDatabase(db);
-    message.value = "Local database reset and reseeded.";
+    await $fetch("/api/admin/reset", { method: "POST" });
+    message.value = "Server data reset and reseeded.";
   } catch (err) {
     message.value = `Reset failed: ${String(err)}`;
   } finally {

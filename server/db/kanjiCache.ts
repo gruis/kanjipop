@@ -52,6 +52,46 @@ const ensureDb = () => {
       createdAt INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS cards (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      term TEXT NOT NULL,
+      reading TEXT,
+      meaning TEXT,
+      levels TEXT,
+      sources TEXT,
+      exampleIds TEXT,
+      createdAt INTEGER,
+      updatedAt INTEGER,
+      version INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS review_states (
+      cardId TEXT PRIMARY KEY,
+      state TEXT NOT NULL,
+      difficulty REAL,
+      stability REAL,
+      retrievability REAL,
+      elapsedDays REAL,
+      scheduledDays REAL,
+      learningSteps INTEGER,
+      lastReview INTEGER,
+      nextDue INTEGER,
+      lapses INTEGER,
+      reps INTEGER,
+      createdAt INTEGER,
+      updatedAt INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS review_logs (
+      id TEXT PRIMARY KEY,
+      cardId TEXT NOT NULL,
+      reviewedAt INTEGER NOT NULL,
+      grade TEXT NOT NULL,
+      elapsed REAL,
+      scheduled REAL
+    );
+
     CREATE TABLE IF NOT EXISTS mnemonics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       term TEXT NOT NULL,
