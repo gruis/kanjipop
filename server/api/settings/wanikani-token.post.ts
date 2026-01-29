@@ -1,7 +1,9 @@
 import { readBody, setResponseStatus } from "h3";
 import { getDb } from "~/server/db/kanjiCache";
+import { requireUser } from "~/server/utils/auth";
 
 export default defineEventHandler(async (event) => {
+  const user = requireUser(event);
   const body = (await readBody(event)) as { token?: string };
   const token = (body?.token || "").trim();
 
@@ -13,10 +15,10 @@ export default defineEventHandler(async (event) => {
   const db = getDb();
   const now = Date.now();
   db.prepare(
-    `INSERT INTO settings (key, value, updatedAt)
+    `INSERT INTO user_settings (userId, wanikaniToken, updatedAt)
      VALUES (?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updatedAt=excluded.updatedAt`
-  ).run("wanikani_token", token, now);
+     ON CONFLICT(userId) DO UPDATE SET wanikaniToken=excluded.wanikaniToken, updatedAt=excluded.updatedAt`
+  ).run(user.id, token, now);
 
   return { ok: true, updatedAt: now };
 });

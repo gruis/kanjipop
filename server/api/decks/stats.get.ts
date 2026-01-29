@@ -1,18 +1,26 @@
 import { getDb } from "~/server/db/kanjiCache";
+import { requireUser } from "~/server/utils/auth";
 
-export default defineEventHandler(() => {
+export default defineEventHandler((event) => {
+  const user = requireUser(event);
   const db = getDb();
 
-  const deckRows = db.prepare("SELECT id FROM decks").all() as Array<{ id: string }>;
-  const stateRows = db.prepare("SELECT cardId, state FROM review_states").all() as Array<{ cardId: string; state: string }>;
+  const deckRows = db
+    .prepare("SELECT id FROM decks WHERE userId = ? OR userId IS NULL")
+    .all(user.id) as Array<{ id: string }>;
+  const stateRows = db
+    .prepare("SELECT cardId, state FROM review_states WHERE userId = ?")
+    .all(user.id) as Array<{ cardId: string; state: string }>;
   const stateByCard = new Map(stateRows.map((row) => [row.cardId, row.state]));
 
   const stats: Record<string, { total: number; new: number; learning: number; review: number; relearn: number }> = {};
 
   for (const deck of deckRows) {
     const items = db
-      .prepare("SELECT term, type FROM deck_items WHERE deckId = ?")
-      .all(deck.id) as Array<{ term: string; type: "kanji" | "vocab" }>;
+      .prepare(
+        "SELECT term, type FROM deck_items WHERE deckId = ? AND (userId = ? OR userId IS NULL) ORDER BY COALESCE(position, 999999), term ASC"
+      )
+      .all(deck.id, user.id) as Array<{ term: string; type: "kanji" | "vocab" }>;
 
     let total = 0;
     let newCount = 0;

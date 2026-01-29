@@ -1,7 +1,9 @@
 import { getQuery } from "h3";
 import { getDb } from "~/server/db/kanjiCache";
+import { requireUser } from "~/server/utils/auth";
 
 export default defineEventHandler((event) => {
+  const user = requireUser(event);
   const query = getQuery(event);
   const idsParam = typeof query.ids === "string" ? query.ids.trim() : "";
   const ids = idsParam ? idsParam.split(",").map((id) => id.trim()).filter(Boolean) : [];
@@ -11,8 +13,8 @@ export default defineEventHandler((event) => {
 
   const placeholders = ids.map(() => "?").join(",");
   const rows = db
-    .prepare(`SELECT cardId, state FROM review_states WHERE cardId IN (${placeholders})`)
-    .all(...ids) as Array<{ cardId: string; state: string }>;
+    .prepare(`SELECT cardId, state FROM review_states WHERE userId = ? AND cardId IN (${placeholders})`)
+    .all(user.id, ...ids) as Array<{ cardId: string; state: string }>;
 
   const states: Record<string, string> = {};
   for (const row of rows) {

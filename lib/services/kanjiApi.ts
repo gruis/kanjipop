@@ -15,22 +15,31 @@ export interface WordDetails {
 }
 
 export interface KanjiExample {
+  id: number;
   text: string;
   reading: string;
   source: string;
+  visibility?: string;
+  userId?: string | null;
 }
 
 export interface KanjiCompound {
+  id: number;
   word: string;
   reading: string;
   meaning: string;
   source: string;
+  visibility?: string;
+  userId?: string | null;
 }
 
 export interface KanjiMnemonic {
+  id: number;
   kind: string;
   text: string;
   source: string;
+  visibility?: string;
+  userId?: string | null;
 }
 
 export const fetchKanjiDetails = async (term: string, refresh = false): Promise<KanjiDetails | null> => {
@@ -49,9 +58,14 @@ export const fetchWordDetails = async (term: string, refresh = false): Promise<W
   }
 };
 
-export const fetchKanjiExamples = async (term: string, refresh = false): Promise<KanjiExample[]> => {
+export const fetchKanjiExamples = async (
+  term: string,
+  refresh = false,
+  includeHidden = false
+): Promise<KanjiExample[]> => {
   try {
-    const res = await $fetch(`/api/kanji/examples?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}`) as { results?: KanjiExample[] };
+    const hiddenParam = includeHidden ? "&includeHidden=1" : "";
+    const res = await $fetch(`/api/kanji/examples?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}${hiddenParam}`) as { results?: KanjiExample[] };
     return res?.results || [];
   } catch {
     return [];
@@ -65,9 +79,33 @@ export const addManualExample = async (term: string, text: string, reading = "")
   });
 };
 
-export const fetchKanjiCompounds = async (term: string, refresh = false): Promise<KanjiCompound[]> => {
+export const addManualCompound = async (
+  term: string,
+  word: string,
+  reading = "",
+  meaning = ""
+) => {
+  await $fetch(`/api/kanji/compounds`, {
+    method: "POST",
+    body: { term, word, reading, meaning },
+  });
+};
+
+export const addManualMnemonic = async (term: string, kind: string, text: string) => {
+  await $fetch(`/api/kanji/mnemonics`, {
+    method: "POST",
+    body: { term, kind, text },
+  });
+};
+
+export const fetchKanjiCompounds = async (
+  term: string,
+  refresh = false,
+  includeHidden = false
+): Promise<KanjiCompound[]> => {
   try {
-    const res = await $fetch(`/api/kanji/compounds?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}`) as { results?: KanjiCompound[] };
+    const hiddenParam = includeHidden ? "&includeHidden=1" : "";
+    const res = await $fetch(`/api/kanji/compounds?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}${hiddenParam}`) as { results?: KanjiCompound[] };
     return res?.results || [];
   } catch {
     return [];
@@ -77,12 +115,14 @@ export const fetchKanjiCompounds = async (term: string, refresh = false): Promis
 export const fetchKanjiMnemonics = async (
   term: string,
   refresh = false,
-  type?: "kanji" | "vocab"
+  type?: "kanji" | "vocab",
+  includeHidden = false
 ): Promise<KanjiMnemonic[]> => {
   try {
     const typeParam = type ? `&type=${type}` : "";
+    const hiddenParam = includeHidden ? "&includeHidden=1" : "";
     const res = await $fetch(
-      `/api/kanji/mnemonics?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}${typeParam}`
+      `/api/kanji/mnemonics?term=${encodeURIComponent(term)}${refresh ? "&refresh=1" : ""}${typeParam}${hiddenParam}`
     ) as { results?: KanjiMnemonic[] };
     return res?.results || [];
   } catch {

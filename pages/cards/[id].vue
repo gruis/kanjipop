@@ -9,6 +9,8 @@ import {
   fetchKanjiMnemonics,
   fetchWordDetails,
   addManualExample,
+  addManualCompound,
+  addManualMnemonic,
   type KanjiCompound,
   type KanjiDetails,
   type KanjiExample,
@@ -39,9 +41,16 @@ const fetchingExamples = ref(false);
 const fetchingCompounds = ref(false);
 const fetchingMnemonics = ref(false);
 const savingExample = ref(false);
+const savingCompound = ref(false);
+const savingMnemonic = ref(false);
 
 const newExampleText = ref("");
 const newExampleReading = ref("");
+const newCompoundWord = ref("");
+const newCompoundReading = ref("");
+const newCompoundMeaning = ref("");
+const newMnemonicKind = ref("meaning");
+const newMnemonicText = ref("");
 
 const extractKanji = (term: string) =>
   Array.from(term).filter((char) => /[\u3400-\u4DBF\u4E00-\u9FFF]/.test(char));
@@ -111,7 +120,7 @@ const loadDetails = async (term: string, refresh = false) => {
 const loadExamples = async (term: string, refresh = false) => {
   fetchingExamples.value = true;
   try {
-    examples.value = await fetchKanjiExamples(term, refresh);
+    examples.value = await fetchKanjiExamples(term, refresh, false);
   } finally {
     fetchingExamples.value = false;
   }
@@ -120,7 +129,7 @@ const loadExamples = async (term: string, refresh = false) => {
 const loadCompounds = async (term: string, refresh = false) => {
   fetchingCompounds.value = true;
   try {
-    compounds.value = await fetchKanjiCompounds(term, refresh);
+    compounds.value = await fetchKanjiCompounds(term, refresh, false);
   } finally {
     fetchingCompounds.value = false;
   }
@@ -129,7 +138,7 @@ const loadCompounds = async (term: string, refresh = false) => {
 const loadMnemonics = async (term: string, refresh = false, type?: "kanji" | "vocab") => {
   fetchingMnemonics.value = true;
   try {
-    mnemonics.value = await fetchKanjiMnemonics(term, refresh, type);
+    mnemonics.value = await fetchKanjiMnemonics(term, refresh, type, false);
   } finally {
     fetchingMnemonics.value = false;
   }
@@ -148,6 +157,41 @@ const saveExample = async () => {
     await loadExamples(card.value.term, true);
   } finally {
     savingExample.value = false;
+  }
+};
+
+const saveCompound = async () => {
+  if (!card.value) return;
+  const word = newCompoundWord.value.trim();
+  if (!word) return;
+  savingCompound.value = true;
+  try {
+    await addManualCompound(
+      card.value.term,
+      word,
+      newCompoundReading.value.trim(),
+      newCompoundMeaning.value.trim()
+    );
+    newCompoundWord.value = "";
+    newCompoundReading.value = "";
+    newCompoundMeaning.value = "";
+    await loadCompounds(card.value.term, true);
+  } finally {
+    savingCompound.value = false;
+  }
+};
+
+const saveMnemonic = async () => {
+  if (!card.value) return;
+  const text = newMnemonicText.value.trim();
+  if (!text) return;
+  savingMnemonic.value = true;
+  try {
+    await addManualMnemonic(card.value.term, newMnemonicKind.value, text);
+    newMnemonicText.value = "";
+    await loadMnemonics(card.value.term, true, card.value.type === "vocab" ? "vocab" : "kanji");
+  } finally {
+    savingMnemonic.value = false;
   }
 };
 
@@ -301,6 +345,46 @@ watch(
               </div>
               <button class="btn btn-outline-primary" :disabled="savingExample" @click="saveExample">
                 {{ savingExample ? "Saving..." : "Save example" }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <div class="card">
+            <div class="card-body">
+              <h2 class="h6">Add compound (manual)</h2>
+              <div class="mb-2">
+                <input v-model="newCompoundWord" class="form-control" placeholder="単語 / 表現" />
+              </div>
+              <div class="mb-2">
+                <input v-model="newCompoundReading" class="form-control" placeholder="よみ (optional)" />
+              </div>
+              <div class="mb-2">
+                <input v-model="newCompoundMeaning" class="form-control" placeholder="意味 (optional)" />
+              </div>
+              <button class="btn btn-outline-primary" :disabled="savingCompound" @click="saveCompound">
+                {{ savingCompound ? "Saving..." : "Save compound" }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <div class="card">
+            <div class="card-body">
+              <h2 class="h6">Add mnemonic (manual)</h2>
+              <div class="mb-2">
+                <select v-model="newMnemonicKind" class="form-select" style="max-width: 220px">
+                  <option value="meaning">Meaning</option>
+                  <option value="reading">Reading</option>
+                </select>
+              </div>
+              <div class="mb-2">
+                <textarea v-model="newMnemonicText" class="form-control" rows="3" placeholder="Mnemonic text"></textarea>
+              </div>
+              <button class="btn btn-outline-primary" :disabled="savingMnemonic" @click="saveMnemonic">
+                {{ savingMnemonic ? "Saving..." : "Save mnemonic" }}
               </button>
             </div>
           </div>

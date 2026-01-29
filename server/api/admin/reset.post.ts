@@ -6,8 +6,8 @@ export default defineEventHandler(() => {
   const db = getDb();
 
   const deckItems = db
-    .prepare("SELECT deckId, term, type, createdAt FROM deck_items")
-    .all() as Array<{ deckId: string; term: string; type: "kanji" | "vocab"; createdAt: number }>;
+    .prepare("SELECT deckId, userId, term, type, createdAt FROM deck_items")
+    .all() as Array<{ deckId: string; userId: string | null; term: string; type: "kanji" | "vocab"; createdAt: number }>;
 
   const tx = db.transaction(() => {
     db.prepare("DELETE FROM review_logs").run();

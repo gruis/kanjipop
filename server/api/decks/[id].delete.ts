@@ -6,19 +6,29 @@ export default defineEventHandler((event) => {
   const user = requireUser(event);
   const id = getRouterParam(event, "id") || "";
   const db = getDb();
+
   const deck = db
     .prepare("SELECT id, userId FROM decks WHERE id = ?")
     .get(id) as { id: string; userId: string | null } | undefined;
 
-  if (!deck || (deck.userId && deck.userId !== user.id)) {
+  if (!deck) {
     setResponseStatus(event, 404);
     return { error: "Deck not found." };
   }
 
-  const items = db
-    .prepare(
-      "SELECT term, type FROM deck_items WHERE deckId = ? AND (userId = ? OR userId IS NULL) ORDER BY COALESCE(position, 999999), term ASC"
-    )
-    .all(id, user.id) as Array<{ term: string; type: "kanji" | "vocab" }>;
-  return { items };
+  const isAdmin = user.role === "admin";
+  const isOwner = deck.userId && deck.userId === user.id;
+  const isShared = deck.userId === null;
+  if (!(isOwner || (isAdmin && isShared))) {
+    setResponseStatus(event, 403);
+    return { error: "Not allowed." };
+  }
+
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM deck_items WHERE deckId = ?").run(id);
+    db.prepare("DELETE FROM decks WHERE id = ?").run(id);
+  });
+  tx();
+
+  return { ok: true };
 });

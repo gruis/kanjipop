@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { flattenLevels, formatLevelLabel } from "~/lib/data/levelMeta";
-import { createDeck, fetchDecks, fetchDeckItems, type DeckItem, type DeckSummary } from "~/lib/services/decksApi";
+import { formatLevelLabel } from "~/lib/data/levelMeta";
+import {
+  createDeck,
+  deleteDeck,
+  fetchDecks,
+  fetchDeckItems,
+  updateDeck,
+  type DeckItem,
+  type DeckSummary,
+} from "~/lib/services/decksApi";
 
 const route = useRoute();
 const router = useRouter();
+const userState = useState<{ id: string; email?: string; role?: string; kind?: string; displayName?: string } | null>(
+  "currentUser"
+);
+const toasts = ref<Array<{ id: string; message: string; variant: string }>>([]);
 
 const seeded = ref(false);
 const activeTaxonomy = ref<"jlpt" | "grade" | "custom">("jlpt");
@@ -20,10 +32,25 @@ const deckName = ref("");
 const deckEntries = ref("");
 const deckMessage = ref("");
 
-const allLevels = flattenLevels();
+const editingDeck = ref(false);
+const editDeckName = ref("");
+const editDeckEntries = ref("");
+const editMessage = ref("");
+const savingEdit = ref(false);
+
+type StandardLevel = { taxonomy: "jlpt" | "grade"; id: string; kanji: string[]; source?: string };
+
+const standardLevels = ref<StandardLevel[]>([]);
 const levelsForTaxonomy = computed(() =>
-  allLevels.filter((lvl) => lvl.taxonomy === activeTaxonomy.value)
+  standardLevels.value.filter((lvl) => lvl.taxonomy === activeTaxonomy.value)
 );
+const isAdmin = computed(() => userState.value?.role === "admin");
+const canManageSelectedDeck = computed(() => {
+  if (!selectedCustomDeck.value) return false;
+  const deckOwnerId = selectedCustomDeck.value.userId ?? null;
+  if (isAdmin.value) return deckOwnerId === null;
+  return deckOwnerId === userState.value?.id;
+});
 
 const filteredLevels = computed(() => {
   if (activeTaxonomy.value === "custom") return [];
@@ -67,17 +94,25 @@ const stateMap = ref<Record<string, string>>({});
 
 const loadDeckStats = async () => {
   if (activeTaxonomy.value === "custom") return;
-  const res = await $fetch<{ stats: Record<string, { total: number; new: number; learning: number; review: number; relearn: number }> }>(
-    `/api/review/stats?taxonomy=${activeTaxonomy.value}`
-  );
-  deckStats.value = res.stats || {};
+  try {
+    const res = await $fetch<{ stats: Record<string, { total: number; new: number; learning: number; review: number; relearn: number }> }>(
+      `/api/review/stats?taxonomy=${activeTaxonomy.value}`
+    );
+    deckStats.value = res.stats || {};
+  } catch {
+    deckStats.value = {};
+  }
 };
 
 const loadCustomDeckStats = async () => {
-  const res = await $fetch<{ stats: Record<string, { total: number; new: number; learning: number; review: number; relearn: number }> }>(
-    "/api/decks/stats"
-  );
-  customDeckStats.value = res.stats || {};
+  try {
+    const res = await $fetch<{ stats: Record<string, { total: number; new: number; learning: number; review: number; relearn: number }> }>(
+      "/api/decks/stats"
+    );
+    customDeckStats.value = res.stats || {};
+  } catch {
+    customDeckStats.value = {};
+  }
 };
 
 const loadStateMap = async (ids: string[]) => {
@@ -85,10 +120,14 @@ const loadStateMap = async (ids: string[]) => {
     stateMap.value = {};
     return;
   }
-  const res = await $fetch<{ states: Record<string, string> }>(
-    `/api/review/state?ids=${encodeURIComponent(ids.join(","))}`
-  );
-  stateMap.value = res.states || {};
+  try {
+    const res = await $fetch<{ states: Record<string, string> }>(
+      `/api/review/state?ids=${encodeURIComponent(ids.join(","))}`
+    );
+    stateMap.value = res.states || {};
+  } catch {
+    stateMap.value = {};
+  }
 };
 
 const chipClassForCard = (cardId: string) => {
@@ -102,6 +141,37 @@ const chipClassForCard = (cardId: string) => {
 };
 
 const percent = (count: number, total: number) => (total ? Math.round((count / total) * 100) : 0);
+
+const loadStandardDecks = async (taxonomy: "jlpt" | "grade") => {
+  try {
+    const res = await $fetch<{
+      lists: Array<{ taxonomy: "jlpt" | "grade"; levels: Array<{ id: string; kanji: string[]; source?: string }> }>;
+    }>(`/api/standard-decks?taxonomy=${taxonomy}`);
+    const lists = res.lists || [];
+    standardLevels.value = lists.flatMap((list) =>
+      list.levels.map((level) => ({
+        taxonomy: list.taxonomy,
+        id: String(level.id),
+        kanji: level.kanji || [],
+        source: level.source,
+      }))
+    );
+  } catch {
+    standardLevels.value = [];
+  }
+};
+
+const pushToast = (message: string, variant = "primary") => {
+  const id = globalThis.crypto?.randomUUID?.() || `toast_${Date.now()}_${Math.random()}`;
+  toasts.value.push({ id, message, variant });
+  setTimeout(() => {
+    toasts.value = toasts.value.filter((toast) => toast.id !== id);
+  }, 3500);
+};
+
+const removeToast = (id: string) => {
+  toasts.value = toasts.value.filter((toast) => toast.id !== id);
+};
 
 const loadDecks = async () => {
   customDecks.value = await fetchDecks();
@@ -138,6 +208,7 @@ const onCreateDeck = async () => {
     deckName.value = "";
     deckEntries.value = "";
     deckMessage.value = "Deck created.";
+    pushToast("Deck created.", "success");
     await loadDecks();
     await loadDeckItems();
     showCreateForm.value = false;
@@ -148,8 +219,77 @@ const onCreateDeck = async () => {
   }
 };
 
+const startEditDeck = () => {
+  if (!selectedCustomDeck.value) return;
+  editingDeck.value = true;
+  editDeckName.value = selectedCustomDeck.value.name;
+  if (selectedCustomDeck.value.entries?.trim()) {
+    editDeckEntries.value = selectedCustomDeck.value.entries.trim();
+  } else {
+    const vocab = selectedDeckItems.value.filter((item) => item.type === "vocab").map((item) => item.term);
+    const kanji = selectedDeckItems.value.filter((item) => item.type === "kanji").map((item) => item.term);
+    const vocabTerms = Array.from(new Set(vocab));
+    const kanjiOnly = Array.from(new Set(kanji)).filter((k) => !vocabTerms.some((v) => v.includes(k)));
+    editDeckEntries.value = [...vocabTerms, ...kanjiOnly].join("\n");
+  }
+  editMessage.value = "";
+};
+
+const cancelEditDeck = () => {
+  editingDeck.value = false;
+  editMessage.value = "";
+};
+
+const saveEditDeck = async () => {
+  if (!selectedCustomDeck.value) return;
+  const name = editDeckName.value.trim();
+  const entries = editDeckEntries.value.trim();
+  if (!name && !entries) return;
+  const finalEntries = entries || selectedCustomDeck.value.entries?.trim() || "";
+  if (!finalEntries) {
+    editMessage.value = "Entries cannot be empty.";
+    pushToast("Entries cannot be empty.", "warning");
+    return;
+  }
+  if (!confirm("Save changes to this deck?")) return;
+  savingEdit.value = true;
+  editMessage.value = "";
+  try {
+    await updateDeck(selectedCustomDeck.value.id, { name, entries: finalEntries });
+    await loadDecks();
+    await loadDeckItems();
+    editingDeck.value = false;
+    editMessage.value = "Deck updated.";
+    pushToast("Deck updated.", "success");
+  } catch (err) {
+    editMessage.value = `Failed to update deck: ${String(err)}`;
+    pushToast("Failed to update deck.", "danger");
+  } finally {
+    savingEdit.value = false;
+  }
+};
+
+const removeDeck = async () => {
+  if (!selectedCustomDeck.value) return;
+  if (!confirm(`Delete deck "${selectedCustomDeck.value.name}"? This cannot be undone.`)) return;
+  try {
+    await deleteDeck(selectedCustomDeck.value.id);
+    await loadDecks();
+    selectedDeckItems.value = [];
+    selectedDeckId.value = customDecks.value[0]?.id || "";
+    await loadDeckItems();
+    pushToast("Deck deleted.", "success");
+  } catch (err) {
+    deckMessage.value = `Failed to delete deck: ${String(err)}`;
+    pushToast("Failed to delete deck.", "danger");
+  }
+};
+
 const setTaxonomy = async (taxonomy: "jlpt" | "grade" | "custom") => {
   activeTaxonomy.value = taxonomy;
+  if (taxonomy !== "custom") {
+    selectedLevel.value = null;
+  }
   await router.replace({ query: { ...route.query, taxonomy } });
 };
 
@@ -160,13 +300,17 @@ onMounted(async () => {
   if (requestedTaxonomy === "jlpt" || requestedTaxonomy === "grade" || requestedTaxonomy === "custom") {
     activeTaxonomy.value = requestedTaxonomy;
   }
-  if (!selectedLevel.value && filteredLevels.value.length > 0) {
-    selectedLevel.value = filteredLevels.value[0].id;
+  if (activeTaxonomy.value !== "custom") {
+    await loadStandardDecks(activeTaxonomy.value);
+    if (!selectedLevel.value && filteredLevels.value.length > 0) {
+      selectedLevel.value = filteredLevels.value[0].id;
+    }
   }
   await loadDeckStats();
   await loadCustomDeckStats();
   await loadDecks();
   await loadDeckItems();
+  editingDeck.value = false;
   if (selected.value) {
     await loadStateMap(selected.value.kanji.map((k) => `kanji:${k}`));
   }
@@ -184,6 +328,7 @@ watch(
 
 watch([activeTaxonomy, search], async () => {
   if (activeTaxonomy.value !== "custom") {
+    await loadStandardDecks(activeTaxonomy.value);
     if (!selectedLevel.value && filteredLevels.value.length > 0) {
       selectedLevel.value = filteredLevels.value[0].id;
     }
@@ -198,6 +343,11 @@ watch([activeTaxonomy, search], async () => {
   } else {
     await loadDeckItems();
   }
+});
+
+watch(selectedDeckId, () => {
+  editingDeck.value = false;
+  editMessage.value = "";
 });
 
 watch(selectedDeckId, async () => {
@@ -219,6 +369,28 @@ watch(selectedLevel, async () => {
 
 <template>
   <div>
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1055">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        class="toast show align-items-center text-bg-light border mb-2"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        <div class="d-flex">
+          <div class="toast-body">
+            <span :class="`text-${toast.variant}`">{{ toast.message }}</span>
+          </div>
+          <button
+            type="button"
+            class="btn-close me-2 m-auto"
+            aria-label="Close"
+            @click="removeToast(toast.id)"
+          ></button>
+        </div>
+      </div>
+    </div>
     <h1 class="h3">Decks</h1>
     <p class="text-muted">
       Browse kanji by JLPT or school grade, or create your own custom decks.
@@ -401,7 +573,7 @@ watch(selectedLevel, async () => {
                   </span>
                 </div>
                 <NuxtLink
-                  v-if="selected"
+                  v-if="selected && !isAdmin"
                   class="btn btn-outline-primary"
                   :to="`/review?taxonomy=${selected.taxonomy}&level=${encodeURIComponent(selected.id)}`"
                 >
@@ -436,19 +608,57 @@ watch(selectedLevel, async () => {
                     {{ selectedDeckItems.length }} items
                   </span>
                 </div>
-                <NuxtLink
-                  v-if="selectedCustomDeck"
-                  class="btn btn-outline-primary"
-                  :to="`/review?taxonomy=custom&deckId=${encodeURIComponent(selectedCustomDeck.id)}`"
-                >
-                  Review Deck
-                </NuxtLink>
+                <div class="d-flex align-items-center gap-2">
+                  <button v-if="canManageSelectedDeck" class="btn btn-outline-secondary" @click="startEditDeck">
+                    Edit
+                  </button>
+                  <button
+                    v-if="canManageSelectedDeck"
+                    class="btn btn-outline-danger"
+                    @click="removeDeck"
+                  >
+                    Delete
+                  </button>
+                  <NuxtLink
+                    v-if="selectedCustomDeck && !isAdmin"
+                    class="btn btn-outline-primary"
+                    :to="`/review?taxonomy=custom&deckId=${encodeURIComponent(selectedCustomDeck.id)}`"
+                  >
+                    Review Deck
+                  </NuxtLink>
+                </div>
               </div>
               <p v-if="!selectedCustomDeck" class="text-muted mb-0">
                 Select a deck to view its items.
               </p>
               <div v-else>
                 <div class="text-muted mb-2">{{ selectedCustomDeck.name }}</div>
+
+                <div v-if="editingDeck && canManageSelectedDeck" class="border rounded p-3 mb-3">
+                  <div class="mb-2">
+                    <label class="form-label">Deck name</label>
+                    <input class="form-control" v-model="editDeckName" />
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label">Entries</label>
+                    <textarea
+                      class="form-control"
+                      rows="6"
+                      v-model="editDeckEntries"
+                      placeholder="Enter kanji or vocab, separated by spaces or newlines."
+                    ></textarea>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-primary" :disabled="savingEdit" @click="saveEditDeck">
+                      Save
+                    </button>
+                    <button class="btn btn-outline-secondary" :disabled="savingEdit" @click="cancelEditDeck">
+                      Cancel
+                    </button>
+                  </div>
+                  <div v-if="editMessage" class="small text-muted mt-2">{{ editMessage }}</div>
+                </div>
+
                 <div v-if="selectedDeckItems.length === 0" class="text-muted">
                   No items in this deck yet.
                 </div>

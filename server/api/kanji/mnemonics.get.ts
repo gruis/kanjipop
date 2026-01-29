@@ -1,5 +1,6 @@
 import { getQuery, setResponseStatus } from "h3";
 import { getDb } from "~/server/db/kanjiCache";
+import { requireUser } from "~/server/utils/auth";
 
 const WANIKANI_REVISION = "20170710";
 
@@ -34,9 +35,11 @@ const fetchWaniKani = async (token: string, term: string, type: "kanji" | "vocab
 };
 
 export default defineEventHandler(async (event) => {
+  const user = requireUser(event);
   const query = getQuery(event);
   const term = typeof query.term === "string" ? query.term : "";
   const refresh = query.refresh === "1";
+  const includeHidden = query.includeHidden === "1" && user.role === "admin";
   const requestedType = query.type === "vocab" ? "vocabulary" : query.type === "kanji" ? "kanji" : null;
 
   if (!term) {
@@ -45,18 +48,25 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = getDb();
+  const visibilityClause = includeHidden ? "" : "AND visibility != 'hidden'";
   const rows = db
-    .prepare("SELECT kind, text, source FROM mnemonics WHERE term = ? ORDER BY id ASC")
-    .all(term) as Array<{ kind: string; text: string; source: string }>;
+    .prepare(
+      `SELECT id, kind, text, source, visibility, userId FROM mnemonics
+       WHERE term = ?
+         ${visibilityClause}
+         AND (userId IS NULL OR userId = ?)
+       ORDER BY id ASC`
+    )
+    .all(term, user.id) as Array<{ id: number; kind: string; text: string; source: string; visibility: string; userId: string | null }>;
 
   if (rows.length && !refresh) {
     return { results: rows, cached: true };
   }
 
   const tokenRow = db
-    .prepare("SELECT value FROM settings WHERE key = ?")
-    .get("wanikani_token") as { value?: string } | undefined;
-  const token = tokenRow?.value?.trim() || "";
+    .prepare("SELECT wanikaniToken FROM user_settings WHERE userId = ?")
+    .get(user.id) as { wanikaniToken?: string } | undefined;
+  const token = tokenRow?.wanikaniToken?.trim() || "";
 
   if (!token) {
     return { results: rows, cached: rows.length > 0, missingToken: true };
@@ -77,23 +87,29 @@ export default defineEventHandler(async (event) => {
     }
     const now = Date.now();
 
-    const deleteStmt = db.prepare("DELETE FROM mnemonics WHERE term = ? AND source = ?");
+    const deleteStmt = db.prepare("DELETE FROM mnemonics WHERE term = ? AND source = 'wanikani' AND userId = ?");
     const insertStmt = db.prepare(
-      "INSERT INTO mnemonics (term, kind, text, source, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)"
+      "INSERT INTO mnemonics (userId, term, kind, text, source, visibility, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     const tx = db.transaction(() => {
-      deleteStmt.run(term, "wanikani");
+      deleteStmt.run(term, user.id);
       for (const entry of mnemonics) {
-        insertStmt.run(term, entry.kind, entry.text, "wanikani", now, now);
+        insertStmt.run(user.id, term, entry.kind, entry.text, "wanikani", "personal", now, now);
       }
     });
 
     tx();
 
     const merged = db
-      .prepare("SELECT kind, text, source FROM mnemonics WHERE term = ? ORDER BY id ASC")
-      .all(term) as Array<{ kind: string; text: string; source: string }>;
+      .prepare(
+        `SELECT id, kind, text, source, visibility, userId FROM mnemonics
+         WHERE term = ?
+           ${visibilityClause}
+           AND (userId IS NULL OR userId = ?)
+         ORDER BY id ASC`
+      )
+      .all(term, user.id) as Array<{ id: number; kind: string; text: string; source: string; visibility: string; userId: string | null }>;
 
     return { results: merged, cached: false };
   } catch (err) {

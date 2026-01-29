@@ -4,15 +4,16 @@ import { requireUser } from "~/server/utils/auth";
 
 export default defineEventHandler(async (event) => {
   const user = requireUser(event);
-  const body = (await readBody(event)) as { term?: string; text?: string; reading?: string };
+  const body = (await readBody(event)) as { term?: string; word?: string; reading?: string; meaning?: string };
 
   const term = (body.term || "").trim();
-  const text = (body.text || "").trim();
+  const word = (body.word || "").trim();
   const reading = (body.reading || "").trim();
+  const meaning = (body.meaning || "").trim();
 
-  if (!term || !text) {
+  if (!term || !word) {
     setResponseStatus(event, 400);
-    return { error: "Missing term or text." };
+    return { error: "Missing term or word." };
   }
 
   const db = getDb();
@@ -21,8 +22,8 @@ export default defineEventHandler(async (event) => {
   const visibility = user.role === "admin" ? "shared" : "personal";
 
   db.prepare(
-    "INSERT INTO examples (userId, term, text, reading, source, visibility, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(userId, term, text, reading, user.role === "admin" ? "admin" : "manual", visibility, now);
+    "INSERT INTO compounds (userId, term, word, reading, meaning, source, visibility, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(userId, term, word, reading, meaning, user.role === "admin" ? "admin" : "manual", visibility, now);
 
   return { ok: true };
 });

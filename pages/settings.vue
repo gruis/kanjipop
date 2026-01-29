@@ -1,28 +1,10 @@
 <script setup lang="ts">
 import { fetchWaniKaniTokenStatus, saveWaniKaniToken, type WaniKaniTokenStatus } from "~/lib/services/settingsApi";
-const isResetting = ref(false);
-const message = ref("");
 
 const tokenStatus = ref<WaniKaniTokenStatus | null>(null);
 const tokenInput = ref("");
 const savingToken = ref(false);
 const tokenMessage = ref("");
-
-const onReset = async () => {
-  if (!confirm("Reset local data and reseed kanji lists? This cannot be undone.")) {
-    return;
-  }
-  isResetting.value = true;
-  message.value = "";
-  try {
-    await $fetch("/api/admin/reset", { method: "POST" });
-    message.value = "Server data reset and reseeded.";
-  } catch (err) {
-    message.value = `Reset failed: ${String(err)}`;
-  } finally {
-    isResetting.value = false;
-  }
-};
 
 const loadTokenStatus = async () => {
   try {
@@ -86,17 +68,5 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-body">
-        <h2 class="h5">Local Data</h2>
-        <p class="text-muted">
-          Reset clears local progress and re-seeds the kanji lists from bundled data.
-        </p>
-        <button class="btn btn-danger" :disabled="isResetting" @click="onReset">
-          {{ isResetting ? "Resetting..." : "Reset & Reseed" }}
-        </button>
-        <p v-if="message" class="mt-3 mb-0">{{ message }}</p>
-      </div>
-    </div>
   </div>
 </template>

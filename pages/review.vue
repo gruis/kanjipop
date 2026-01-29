@@ -20,6 +20,7 @@ import { flattenLevels, formatLevelLabel } from "~/lib/data/levelMeta";
 import { fetchDecks, type DeckSummary } from "~/lib/services/decksApi";
 
 const route = useRoute();
+const router = useRouter();
 
 const loading = ref(true);
 const currentCard = ref<Card | null>(null);
@@ -228,6 +229,11 @@ watch(
 );
 
 onMounted(async () => {
+  const me = await $fetch<{ user: { id: string } | null }>("/api/auth/me").catch(() => ({ user: null }));
+  if (!me.user) {
+    await router.push("/login");
+    return;
+  }
   await $fetch("/api/cards/seed");
   decks.value = await fetchDecks();
 

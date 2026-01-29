@@ -2,15 +2,19 @@ import { getQuery } from "h3";
 import { getDb } from "~/server/db/kanjiCache";
 import { seedCardsIfEmpty } from "~/server/seed/seedCards";
 import { allLevelLists } from "~/lib/data/kanjiLists";
+import { requireUser } from "~/server/utils/auth";
 
 export default defineEventHandler((event) => {
+  const user = requireUser(event);
   const query = getQuery(event);
   const taxonomy = typeof query.taxonomy === "string" ? query.taxonomy : "";
 
   const db = getDb();
   seedCardsIfEmpty(db);
 
-  const reviewRows = db.prepare("SELECT cardId, state FROM review_states").all() as Array<{ cardId: string; state: string }>;
+  const reviewRows = db
+    .prepare("SELECT cardId, state FROM review_states WHERE userId = ?")
+    .all(user.id) as Array<{ cardId: string; state: string }>;
   const stateByCard = new Map(reviewRows.map((row) => [row.cardId, row.state]));
 
   const stats: Record<string, { total: number; new: number; learning: number; review: number; relearn: number }> = {};

@@ -4,11 +4,11 @@ import { requireUser } from "~/server/utils/auth";
 
 export default defineEventHandler(async (event) => {
   const user = requireUser(event);
-  const body = (await readBody(event)) as { term?: string; text?: string; reading?: string };
+  const body = (await readBody(event)) as { term?: string; kind?: string; text?: string };
 
   const term = (body.term || "").trim();
+  const kind = (body.kind || "").trim() || "meaning";
   const text = (body.text || "").trim();
-  const reading = (body.reading || "").trim();
 
   if (!term || !text) {
     setResponseStatus(event, 400);
@@ -21,8 +21,8 @@ export default defineEventHandler(async (event) => {
   const visibility = user.role === "admin" ? "shared" : "personal";
 
   db.prepare(
-    "INSERT INTO examples (userId, term, text, reading, source, visibility, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(userId, term, text, reading, user.role === "admin" ? "admin" : "manual", visibility, now);
+    "INSERT INTO mnemonics (userId, term, kind, text, source, visibility, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(userId, term, kind, text, user.role === "admin" ? "admin" : "manual", visibility, now, now);
 
   return { ok: true };
 });

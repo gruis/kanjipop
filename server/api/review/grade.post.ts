@@ -3,8 +3,10 @@ import { getDb } from "~/server/db/kanjiCache";
 import { rowToReviewState, reviewStateToRow } from "~/server/utils/review";
 import { makeInitialReviewState, reviewWithFsrs, type Grade } from "~/lib/srs/fsrs";
 import { makeId } from "~/lib/srs/ids";
+import { requireUser } from "~/server/utils/auth";
 
 export default defineEventHandler(async (event) => {
+  const user = requireUser(event);
   const body = (await readBody(event)) as { cardId?: string; grade?: Grade };
   const cardId = body?.cardId || "";
   const grade = body?.grade as Grade;
@@ -21,7 +23,7 @@ export default defineEventHandler(async (event) => {
     return { error: "Card not found." };
   }
 
-  const stateRow = db.prepare("SELECT * FROM review_states WHERE cardId = ?").get(cardId);
+  const stateRow = db.prepare("SELECT * FROM review_states WHERE userId = ? AND cardId = ?").get(user.id, cardId);
   const now = Date.now();
   const baseState = stateRow ? rowToReviewState(stateRow) : makeInitialReviewState(cardId, now);
 
@@ -41,10 +43,10 @@ export default defineEventHandler(async (event) => {
 
   const upsertState = db.prepare(
     `INSERT INTO review_states
-      (cardId, state, difficulty, stability, retrievability, elapsedDays, scheduledDays, learningSteps, lastReview, nextDue, lapses, reps, createdAt, updatedAt)
+      (userId, cardId, state, difficulty, stability, retrievability, elapsedDays, scheduledDays, learningSteps, lastReview, nextDue, lapses, reps, createdAt, updatedAt)
      VALUES
-      (@cardId, @state, @difficulty, @stability, @retrievability, @elapsedDays, @scheduledDays, @learningSteps, @lastReview, @nextDue, @lapses, @reps, @createdAt, @updatedAt)
-     ON CONFLICT(cardId) DO UPDATE SET
+      (@userId, @cardId, @state, @difficulty, @stability, @retrievability, @elapsedDays, @scheduledDays, @learningSteps, @lastReview, @nextDue, @lapses, @reps, @createdAt, @updatedAt)
+     ON CONFLICT(userId, cardId) DO UPDATE SET
       state=excluded.state,
       difficulty=excluded.difficulty,
       stability=excluded.stability,
@@ -61,13 +63,13 @@ export default defineEventHandler(async (event) => {
   );
 
   const insertLog = db.prepare(
-    `INSERT INTO review_logs (id, cardId, reviewedAt, grade, elapsed, scheduled)
-     VALUES (@id, @cardId, @reviewedAt, @grade, @elapsed, @scheduled)`
+    `INSERT INTO review_logs (id, userId, cardId, reviewedAt, grade, elapsed, scheduled)
+     VALUES (@id, @userId, @cardId, @reviewedAt, @grade, @elapsed, @scheduled)`
   );
 
   const tx = db.transaction(() => {
-    upsertState.run(reviewStateToRow(nextState));
-    insertLog.run(log);
+    upsertState.run({ ...reviewStateToRow(nextState), userId: user.id });
+    insertLog.run({ ...log, userId: user.id });
   });
 
   tx();

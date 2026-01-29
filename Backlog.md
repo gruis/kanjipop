@@ -4,6 +4,9 @@
 - [ ] Manual mnemonic entry and editing UI per card (custom mnemonics).
 - [ ] Custom deck management (rename, delete, reorder, add/remove items).
 - [ ] Deck detail view with item list and per-item status.
+- [x] Custom deck's created by the Admin should be shared with all users
+- [x] Admin: edit/delete shared custom decks
+- [x] Admin: hide Review Deck button on Decks page
 
 ## Planned features from overall goal (not started)
 - [ ] FSRS tuning UI (retention target, max interval, etc.).
@@ -25,3 +28,6 @@
 - [ ] Control order of cards in the deck; order that new ones will be shown.
       Basically I want the school year decks to progress new kanji in the order that
       they are given in class.
+- [ ] Exploration: per-grade reading availability (limit which readings appear by level)
+- [ ] Improve Admin Decks drag-and-drop on iPad (touch-friendly DnD)
+- [ ] Upcoming list: buckets based on days in the future when cards will be ready for review with counts for each bucket
