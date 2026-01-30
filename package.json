@@ -18,9 +18,7 @@
     "cheerio": "^1.0.0-rc.12",
     "node-fetch": "^3.3.2",
     "ts-fsrs": "^5.2.0",
-    "unofficial-jisho-api": "^2.3.4"
-  },
-  "devDependencies": {
+    "unofficial-jisho-api": "^2.3.4",
     "nuxt": "^3.12.4"
   }
 }
