@@ -33,7 +33,7 @@ if [[ "$APP_TAG_FETCH" != v* ]]; then
 fi
 
 if [[ -z "$APP_ASSET" ]]; then
-  APP_ASSET="kanjipop-${APP_TAG}.tar.gz"
+  APP_ASSET="kanjipop-${APP_TAG_FETCH}.tar.gz"
 fi
 
 msg_info "Installing dependencies"

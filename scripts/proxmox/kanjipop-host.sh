@@ -82,14 +82,14 @@ case "$cmd" in
       echo "APP_REPO is required for update."
       exit 1
     fi
-    pct exec "$CT_ID" -- bash -lc "export APP_REPO='$APP_REPO'; export APP_ASSET='$APP_ASSET'; bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${APP_REPO}/main/scripts/proxmox/kanjipop-update.sh?cb=$(date +%s))\""
+    pct exec "$CT_ID" -- bash -lc "export FUNCTIONS_FILE_PATH=\"\$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)\"; export APP_REPO='$APP_REPO'; export APP_ASSET='$APP_ASSET'; bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${APP_REPO}/main/scripts/proxmox/kanjipop-update.sh?cb=$(date +%s))\""
     ;;
   uninstall)
     if [[ -z "$APP_REPO" ]]; then
       echo "APP_REPO is required for uninstall."
       exit 1
     fi
-    pct exec "$CT_ID" -- bash -lc "export PRESERVE_DATA='$PRESERVE_DATA'; export PRESERVE_KANJISVG='$PRESERVE_KANJISVG'; bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${APP_REPO}/main/scripts/proxmox/kanjipop-uninstall.sh?cb=$(date +%s))\""
+    pct exec "$CT_ID" -- bash -lc "export FUNCTIONS_FILE_PATH=\"\$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)\"; export PRESERVE_DATA='$PRESERVE_DATA'; export PRESERVE_KANJISVG='$PRESERVE_KANJISVG'; bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${APP_REPO}/main/scripts/proxmox/kanjipop-uninstall.sh?cb=$(date +%s))\""
     ;;
   *)
     echo "Usage: $0 {status|start|stop|restart|logs|update|uninstall}"

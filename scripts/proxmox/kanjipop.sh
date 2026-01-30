@@ -97,6 +97,19 @@ function update_script() {
   CURRENT_VERSION=""
   [[ -f "$VERSION_FILE" ]] && CURRENT_VERSION=$(cat "$VERSION_FILE")
 
+  prune_app_dir() {
+    find "$APP_DIR" -mindepth 1 -maxdepth 1 \
+      \( -name data -o -name public \) -prune -o -exec rm -rf {} +
+    if [[ -d "$APP_DIR/public" ]]; then
+      find "$APP_DIR/public" -mindepth 1 -maxdepth 1 \
+        -name kanjisvg -prune -o -exec rm -rf {} +
+    fi
+    if [[ -d "$APP_DIR/data" ]]; then
+      find "$APP_DIR/data" -mindepth 1 -maxdepth 1 \
+        -name db -prune -o -exec rm -rf {} +
+    fi
+  }
+
   if [[ "$CURRENT_VERSION" != "$RELEASE" ]]; then
     msg_info "Stopping Service"
     systemctl stop kanjipop
@@ -108,8 +121,9 @@ function update_script() {
     if [[ "$RELEASE_FETCH" != v* ]]; then
       RELEASE_FETCH="v${RELEASE_FETCH}"
     fi
-    export APP_ASSET="${APP_ASSET:-kanjipop-${RELEASE}.tar.gz}"
-    CLEAN_INSTALL=1 fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "prebuild" "$RELEASE_FETCH" "$APP_DIR" "$APP_ASSET"
+    export APP_ASSET="${APP_ASSET:-kanjipop-${RELEASE_FETCH}.tar.gz}"
+    prune_app_dir
+    CLEAN_INSTALL=0 fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "prebuild" "$RELEASE_FETCH" "$APP_DIR" "$APP_ASSET"
     cd "$APP_DIR"
     npm ci --omit=dev
     echo "$RELEASE" >"$VERSION_FILE"
