@@ -51,6 +51,7 @@ msg_ok "Release installed"
 msg_info "Installing production dependencies"
 cd "$APP_DIR"
 $STD npm ci --omit=dev
+rm -rf "$APP_DIR/.output/server/node_modules" "$APP_DIR/.output/node_modules"
 msg_ok "Dependencies installed"
 
 msg_info "Downloading KanjiVG assets"

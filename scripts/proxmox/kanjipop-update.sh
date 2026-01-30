@@ -49,6 +49,7 @@ if [[ "$CURRENT_VERSION" != "$RELEASE" ]]; then
   msg_info "Installing production dependencies"
   cd "$APP_DIR"
   $STD npm ci --omit=dev
+  rm -rf "$APP_DIR/.output/server/node_modules" "$APP_DIR/.output/node_modules"
   echo "$RELEASE" >"$VERSION_FILE"
   msg_ok "Updated KanjiPop"
 
