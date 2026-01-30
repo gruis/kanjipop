@@ -125,27 +125,29 @@ onMounted(() => {
             </button>
           </div>
 
-          <div v-if="mode === 'adult'">
-            <div class="mb-2">
-              <label class="form-label">Email</label>
-              <input v-model="email" type="email" class="form-control" autocomplete="email" />
+          <form @submit.prevent="onLogin">
+            <div v-if="mode === 'adult'">
+              <div class="mb-2">
+                <label class="form-label">Email</label>
+                <input v-model="email" type="email" class="form-control" autocomplete="email" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input v-model="password" type="password" class="form-control" autocomplete="current-password" />
+              </div>
             </div>
-            <div class="mb-3">
-              <label class="form-label">Password</label>
-              <input v-model="password" type="password" class="form-control" autocomplete="current-password" />
-            </div>
-          </div>
 
-          <div v-else>
-            <div class="mb-3">
-              <label class="form-label">PIN</label>
-              <input v-model="pin" type="password" class="form-control" inputmode="numeric" />
+            <div v-else>
+              <div class="mb-3">
+                <label class="form-label">PIN</label>
+                <input v-model="pin" type="password" class="form-control" inputmode="numeric" />
+              </div>
             </div>
-          </div>
 
-          <button class="btn btn-primary" :disabled="loading" @click="onLogin">
-            {{ loading ? "Signing in..." : "Sign in" }}
-          </button>
+            <button class="btn btn-primary" :disabled="loading" type="submit">
+              {{ loading ? "Signing in..." : "Sign in" }}
+            </button>
+          </form>
           <p v-if="message" class="text-danger mt-2 mb-0">{{ message }}</p>
         </div>
       </div>

@@ -175,6 +175,20 @@ const ensureDb = () => {
       position INTEGER NOT NULL,
       PRIMARY KEY (taxonomy, levelId, term)
     );
+
+    CREATE TABLE IF NOT EXISTS prefetch_jobs (
+      id TEXT PRIMARY KEY,
+      status TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      total INTEGER NOT NULL,
+      processed INTEGER NOT NULL,
+      failed INTEGER NOT NULL,
+      options TEXT,
+      remaining TEXT,
+      error TEXT,
+      createdAt INTEGER,
+      updatedAt INTEGER
+    );
   `);
 
   if (!hasColumn(db, "review_states", "userId")) {
