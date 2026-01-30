@@ -52,7 +52,12 @@ msg_info "Downloading KanjiVG assets"
 curl -fsSL https://github.com/KanjiVG/kanjivg/releases/download/r20250816/kanjivg-20250816-all.zip -o /tmp/kanjivg.zip
 unzip -q /tmp/kanjivg.zip -d /tmp/kanjivg
 rm -rf "${KANJISVG_DIR:?}/"*
-cp -R /tmp/kanjivg/kanjivg/kanji "$KANJISVG_DIR/kanji"
+KANJI_SRC="$(find /tmp/kanjivg -type d -name kanji | head -n 1)"
+if [[ -z "$KANJI_SRC" ]]; then
+  msg_error "KanjiVG 'kanji' directory not found after unzip."
+  exit 1
+fi
+cp -R "$KANJI_SRC" "$KANJISVG_DIR/kanji"
 msg_ok "KanjiVG installed"
 
 msg_info "Creating Service"
