@@ -49,7 +49,7 @@ $STD npm ci --omit=dev
 msg_ok "Dependencies installed"
 
 msg_info "Downloading KanjiVG assets"
-curl -fsSL https://github.com/KanjiVG/kanjivg/releases/latest/download/kanjivg.zip -o /tmp/kanjivg.zip
+curl -fsSL https://github.com/KanjiVG/kanjivg/releases/download/r20250816/kanjivg-20250816-all.zip -o /tmp/kanjivg.zip
 unzip -q /tmp/kanjivg.zip -d /tmp/kanjivg
 rm -rf "${KANJISVG_DIR:?}/"*
 cp -R /tmp/kanjivg/kanjivg/kanji "$KANJISVG_DIR/kanji"
