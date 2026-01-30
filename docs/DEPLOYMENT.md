@@ -48,8 +48,8 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scri
 
 ### Unified host helper (recommended)
 ```
-export CT_ID=123
 export APP_REPO="gruis/kanjipop"
+export CT_HOSTNAME="kanjipop" # optional override
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" status
 ```
 
@@ -64,7 +64,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scri
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" uninstall
 ```
 
-You can also pass the container ID as the second argument:
+If auto-detection by hostname fails, you can pass the container ID as the second argument:
 ```
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" status 123
 ```

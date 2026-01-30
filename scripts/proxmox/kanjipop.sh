@@ -5,7 +5,7 @@ source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxV
 # Source: https://github.com/community-scripts/ProxmoxVE
 
 APP="KanjiPop"
-var_tags="${var_tags:-education}"
+var_tags="${var_tags:-education;kanjipop}"
 var_cpu="${var_cpu:-2}"
 var_ram="${var_ram:-2048}"
 var_disk="${var_disk:-8}"
@@ -33,8 +33,7 @@ export APP_DIR="${APP_DIR:-/opt/kanjipop}"
 export DATA_DIR="${DATA_DIR:-/opt/kanjipop/data/db}"
 export KANJISVG_DIR="${KANJISVG_DIR:-/opt/kanjipop/public/kanjisvg}"
 export VERSION_FILE="/opt/kanjipop_version.txt"
-export INSTALL_SCRIPT_URL="${INSTALL_SCRIPT_URL:-}"
-export CT_HOSTNAME="${CT_HOSTNAME:-kanjipop}"
+export INSTALL_SCRIPT_URL="${INSTALL_SCRIPT_URL:-https://raw.githubusercontent.com/${APP_REPO}/main/scripts/proxmox/kanjipop-install.sh}"
 
 header_info "$APP"
 variables
@@ -90,44 +89,11 @@ function update_script() {
   exit
 }
 
-function install_script() {
-  # This overrides build.func's install_script to pull our installer from this repo.
-  if [[ -z "$INSTALL_SCRIPT_URL" ]]; then
-    msg_error "INSTALL_SCRIPT_URL is required."
-    exit 1
-  fi
-
-  if [[ -z "${CTID:-}" && -n "${CT_ID:-}" ]]; then
-    CTID="$CT_ID"
-  fi
-
-  if [[ -z "${CTID:-}" && -n "${CT_HOSTNAME:-}" ]]; then
-    CTID=$(pct list | awk -v hn="$CT_HOSTNAME" 'NR>1 && $2==hn {print $1}')
-  fi
-
-  if [[ -z "${CTID:-}" ]]; then
-    msg_error "CTID not set and could not auto-detect container by hostname (${CT_HOSTNAME})."
-    exit 1
-  fi
-
-  if command -v curl >/dev/null 2>&1; then
-    export FUNCTIONS_FILE_PATH="$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)"
-  else
-    export FUNCTIONS_FILE_PATH="$(wget -qO- https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)"
-  fi
-
-  export INSTALL_LOG="/root/.install-${SESSION_ID}.log"
-  export APP_REPO APP_TAG APP_ASSET APP_PORT APP_DIR DATA_DIR KANJISVG_DIR VERSION_FILE
-
-  # Install base packages inside container
-  pct exec "$CTID" -- bash -c "apt-get update >/dev/null && apt-get install -y sudo curl mc gnupg2 jq >/dev/null" || {
-    msg_error "apt-get base packages installation failed"
-    exit 1
-  }
-
-  # Run application installer inside container
-  lxc-attach -n "$CTID" -- bash -c "$(curl -fsSL "$INSTALL_SCRIPT_URL")"
-}
+# Patch build_container to use our installer URL while keeping the standard
+# community-scripts creation flow (auto CTID, menus, etc.).
+if declare -f build_container >/dev/null 2>&1; then
+  eval "$(declare -f build_container | sed 's#https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/install/${var_install}.sh#${INSTALL_SCRIPT_URL}#')"
+fi
 
 start
 build_container
