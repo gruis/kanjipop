@@ -50,6 +50,9 @@ onMounted(() => {
 
 <template>
   <div>
+    <div class="text-center mb-4">
+      <img src="/kanjipop_logo_tagline.png" alt="KanjiPop" style="max-width: 360px; width: 100%" />
+    </div>
     <h1 class="h3">Settings</h1>
     <p class="text-muted">Storage and backup controls will live here.</p>
 

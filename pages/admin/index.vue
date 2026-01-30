@@ -35,6 +35,9 @@ onMounted(async () => {
 
 <template>
   <div class="container py-4" style="max-width: 960px">
+    <div class="text-center mb-4">
+      <img src="/kanjipop_logo_tagline.png" alt="KanjiPop" style="max-width: 360px; width: 100%" />
+    </div>
     <h1 class="h3 mb-3">Admin</h1>
     <p class="text-muted">Manage users, shared content, decks, and system settings.</p>
 
