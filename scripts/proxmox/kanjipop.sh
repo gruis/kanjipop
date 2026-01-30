@@ -34,6 +34,10 @@ export DATA_DIR="${DATA_DIR:-/opt/kanjipop/data/db}"
 export KANJISVG_DIR="${KANJISVG_DIR:-/opt/kanjipop/public/kanjisvg}"
 export VERSION_FILE="/opt/kanjipop_version.txt"
 export INSTALL_SCRIPT_URL="${INSTALL_SCRIPT_URL:-https://raw.githubusercontent.com/${APP_REPO}/main/scripts/proxmox/kanjipop-install.sh}"
+export CACHE_BUSTER="${CACHE_BUSTER:-}"
+if [[ -z "$CACHE_BUSTER" ]]; then
+  CACHE_BUSTER="$(date +%s)"
+fi
 
 header_info "$APP"
 variables
@@ -96,7 +100,8 @@ function update_script() {
 # Patch build_container to use our installer URL while keeping the standard
 # community-scripts creation flow (auto CTID, menus, etc.).
 if declare -f build_container >/dev/null 2>&1; then
-  eval "$(declare -f build_container | sed 's#https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/install/${var_install}.sh#${INSTALL_SCRIPT_URL}#')"
+  INSTALL_WITH_CACHE="${INSTALL_SCRIPT_URL}?cb=${CACHE_BUSTER}"
+  eval "$(declare -f build_container | sed \"s#https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/install/\\${var_install}.sh#${INSTALL_WITH_CACHE}#\")"
 fi
 
 start
