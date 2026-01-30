@@ -3,6 +3,13 @@
 # Copyright (c) 2021-2026 community-scripts ORG
 # License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
 
+if [[ -z "${FUNCTIONS_FILE_PATH:-}" ]]; then
+  if command -v curl >/dev/null 2>&1; then
+    FUNCTIONS_FILE_PATH="$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)"
+  else
+    FUNCTIONS_FILE_PATH="$(wget -qO- https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)"
+  fi
+fi
 source /dev/stdin <<<"$FUNCTIONS_FILE_PATH"
 color
 verb_ip6
