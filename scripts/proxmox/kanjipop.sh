@@ -73,7 +73,7 @@ function update_script() {
     msg_info "Updating ${APP} to ${RELEASE}"
     export APP_TAG="$RELEASE"
     export APP_ASSET="${APP_ASSET:-kanjipop-${RELEASE}.tar.gz}"
-    CLEAN_INSTALL=1 fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "tarball"
+    CLEAN_INSTALL=1 fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "prebuild" "$RELEASE" "$APP_DIR" "$APP_ASSET"
     cd "$APP_DIR"
     npm ci --omit=dev
     echo "$RELEASE" >"$VERSION_FILE"

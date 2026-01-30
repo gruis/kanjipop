@@ -40,7 +40,7 @@ mkdir -p "$APP_DIR" "$DATA_DIR" "$KANJISVG_DIR"
 msg_ok "Directories ready"
 
 msg_info "Downloading release"
-fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "tarball"
+fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "prebuild" "$APP_TAG" "$APP_DIR" "$APP_ASSET"
 msg_ok "Release installed"
 
 msg_info "Installing production dependencies"

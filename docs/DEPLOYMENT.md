@@ -15,7 +15,7 @@
 ## Proxmox LXC (no Docker) Option
 ### Community-scripts style (recommended)
 - Use `scripts/proxmox/kanjipop.sh` (ct script) and `scripts/proxmox/kanjipop-install.sh` (install script).
-- It pulls a prebuilt GitHub Release tar.gz, installs Node, downloads KanjiVG, and creates a systemd service.
+- It pulls a prebuilt GitHub Release asset tar.gz, installs Node, downloads KanjiVG, and creates a systemd service.
 - Requires: `APP_REPO` and `APP_TAG` env vars.
 
 One-line install (no repo on host):

@@ -40,7 +40,7 @@ if [[ "$CURRENT_VERSION" != "$RELEASE" ]]; then
   msg_info "Updating KanjiPop to ${RELEASE}"
   export APP_TAG="$RELEASE"
   export APP_ASSET="${APP_ASSET:-kanjipop-${RELEASE}.tar.gz}"
-  CLEAN_INSTALL=1 fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "tarball"
+  CLEAN_INSTALL=1 fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "prebuild" "$RELEASE" "$APP_DIR" "$APP_ASSET"
 
   msg_info "Installing production dependencies"
   cd "$APP_DIR"
