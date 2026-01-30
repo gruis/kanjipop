@@ -37,7 +37,9 @@ watch(
   <div>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-fluid">
-        <NuxtLink class="navbar-brand" to="/">Kanji SRS</NuxtLink>
+        <NuxtLink class="navbar-brand d-flex align-items-center gap-2" to="/">
+          <img src="/kanjipop_logo.png" alt="KanjiPop" style="height: 32px" />
+        </NuxtLink>
         <button
           class="navbar-toggler"
           type="button"
@@ -62,12 +64,6 @@ watch(
                 <NuxtLink class="nav-link" to="/cards">Cards</NuxtLink>
               </li>
               <li class="nav-item">
-                <NuxtLink class="nav-link" to="/kanji-wall">Kanji Wall</NuxtLink>
-              </li>
-              <li class="nav-item">
-                <NuxtLink class="nav-link" to="/import">Import</NuxtLink>
-              </li>
-              <li class="nav-item">
                 <NuxtLink class="nav-link" to="/settings">Settings</NuxtLink>
               </li>
             </template>
@@ -80,13 +76,7 @@ watch(
               </li>
             </template>
             <li class="nav-item" v-if="userState?.role === 'admin'">
-              <NuxtLink class="nav-link" to="/admin/users">Admin Users</NuxtLink>
-            </li>
-            <li class="nav-item" v-if="userState?.role === 'admin'">
-              <NuxtLink class="nav-link" to="/admin/content">Admin Content</NuxtLink>
-            </li>
-            <li class="nav-item" v-if="userState?.role === 'admin'">
-              <NuxtLink class="nav-link" to="/admin/standard-decks">Admin Decks</NuxtLink>
+              <NuxtLink class="nav-link" to="/admin">Admin</NuxtLink>
             </li>
           </ul>
           <div class="d-flex align-items-center gap-2 text-light" v-if="userState">

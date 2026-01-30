@@ -73,6 +73,9 @@ onMounted(() => {
 
 <template>
   <div class="container py-4" style="max-width: 720px">
+    <div class="text-center mb-4">
+      <img src="/kanjipop_logo_tagline.png" alt="KanjiPop" style="max-width: 360px; width: 100%" />
+    </div>
     <h1 class="h3 mb-3">Sign in</h1>
 
     <div v-if="hasAdmin === null" class="text-muted">Checking admin status...</div>

@@ -27,7 +27,7 @@
 - [x] Admin content curation (approve/hide fetched items)
 
 ## Deployment
-- [ ] Dockerfile
-- [ ] docker-compose.yml
-- [ ] Caddyfile
-- [ ] Deployment guide
+- [x] Dockerfile
+- [x] docker-compose.yml
+- [x] Caddyfile
+- [x] Deployment guide

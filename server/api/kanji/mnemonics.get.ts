@@ -13,7 +13,7 @@ const fetchWaniKani = async (token: string, term: string, type: "kanji" | "vocab
     Authorization: `Bearer ${token}`,
     "Wanikani-Revision": WANIKANI_REVISION,
     Accept: "application/json",
-    "User-Agent": "kanji-prompt (personal use)",
+    "User-Agent": "kanjipop (personal use)",
   } as const;
 
   const tryFetch = async (url: string) => {

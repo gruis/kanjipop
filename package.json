@@ -1,6 +1,6 @@
 {
-  "name": "kanji-prompt",
-  "version": "1.0.0",
+  "name": "kanjipop",
+  "version": "0.0.0",
   "main": "index.js",
   "scripts": {
     "dev": "nuxt dev --no-fork",
@@ -16,7 +16,6 @@
     "better-sqlite3": "^12.6.2",
     "bootstrap": "^5.3.3",
     "cheerio": "^1.0.0-rc.12",
-    "dexie": "^4.0.11",
     "node-fetch": "^3.3.2",
     "ts-fsrs": "^5.2.0",
     "unofficial-jisho-api": "^2.3.4"

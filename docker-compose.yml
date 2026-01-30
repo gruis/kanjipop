@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  kanjipop:
+    build: .
+    image: kanjipop:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data/db:/app/data/db
+      - ./public/kanjisvg:/app/public/kanjisvg:ro
