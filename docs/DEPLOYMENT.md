@@ -107,10 +107,20 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scri
 - Optional: snapshot container volume in Proxmox.
 
 ## GitHub Release Setup (quick)
-0) Create a tag:
-   - `git tag v1.0.0 && git push origin v1.0.0`
-1) Build and package on your dev machine:
-   - `./scripts/release/package-release.sh v1.0.0`
-2) Create a GitHub Release and upload the tarball as an asset.
-   - `./scripts/release/create-release.sh v1.0.0`
-3) Use `APP_TAG=v1.0.0` (and `APP_ASSET=kanjipop-v1.0.0.tar.gz` if you want to be explicit).
+0) Commit your changes and push to `main`.
+1) Create an annotated tag and push it:
+   - `git tag -a v0.1.0-rc1 -m "v0.1.0-rc1"`
+   - `git push origin v0.1.0-rc1`
+2) Build and package on your dev machine:
+   - `./scripts/release/package-release.sh v0.1.0-rc1`
+3) Create a GitHub Release and upload the tarball as an asset:
+   - `./scripts/release/create-release.sh v0.1.0-rc1`
+4) Deploy with `APP_TAG=v0.1.0-rc1` (and `APP_ASSET=kanjipop-v0.1.0-rc1.tar.gz` if you want to be explicit).
+
+If you need to move a tag to a newer commit:
+```
+git tag -d v0.1.0-rc1
+git push --delete origin v0.1.0-rc1
+git tag -a v0.1.0-rc1 -m "v0.1.0-rc1"
+git push origin v0.1.0-rc1
+```

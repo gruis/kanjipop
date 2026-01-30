@@ -34,6 +34,7 @@ export DATA_DIR="${DATA_DIR:-/opt/kanjipop/data/db}"
 export KANJISVG_DIR="${KANJISVG_DIR:-/opt/kanjipop/public/kanjisvg}"
 export VERSION_FILE="/opt/kanjipop_version.txt"
 export INSTALL_SCRIPT_URL="${INSTALL_SCRIPT_URL:-}"
+export CT_HOSTNAME="${CT_HOSTNAME:-kanjipop}"
 
 header_info "$APP"
 variables
@@ -93,6 +94,19 @@ function install_script() {
   # This overrides build.func's install_script to pull our installer from this repo.
   if [[ -z "$INSTALL_SCRIPT_URL" ]]; then
     msg_error "INSTALL_SCRIPT_URL is required."
+    exit 1
+  fi
+
+  if [[ -z "${CTID:-}" && -n "${CT_ID:-}" ]]; then
+    CTID="$CT_ID"
+  fi
+
+  if [[ -z "${CTID:-}" && -n "${CT_HOSTNAME:-}" ]]; then
+    CTID=$(pct list | awk -v hn="$CT_HOSTNAME" 'NR>1 && $2==hn {print $1}')
+  fi
+
+  if [[ -z "${CTID:-}" ]]; then
+    msg_error "CTID not set and could not auto-detect container by hostname (${CT_HOSTNAME})."
     exit 1
   fi
 
