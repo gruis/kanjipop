@@ -101,7 +101,9 @@ function update_script() {
 # community-scripts creation flow (auto CTID, menus, etc.).
 if declare -f build_container >/dev/null 2>&1; then
   INSTALL_WITH_CACHE="${INSTALL_SCRIPT_URL}?cb=${CACHE_BUSTER}"
-  eval "$(declare -f build_container | sed \"s#https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/install/\\${var_install}.sh#${INSTALL_WITH_CACHE}#\")"
+  build_container_src="$(declare -f build_container)"
+  build_container_src="${build_container_src//https:\/\/raw.githubusercontent.com\/community-scripts\/ProxmoxVE\/main\/install\/\${var_install}.sh/${INSTALL_WITH_CACHE}}"
+  eval "$build_container_src"
 fi
 
 start
