@@ -25,6 +25,11 @@ if [[ -z "$APP_TAG" ]]; then
   exit 1
 fi
 
+APP_TAG_FETCH="$APP_TAG"
+if [[ "$APP_TAG_FETCH" != v* ]]; then
+  APP_TAG_FETCH="v${APP_TAG_FETCH}"
+fi
+
 if [[ -z "$APP_ASSET" ]]; then
   APP_ASSET="kanjipop-${APP_TAG}.tar.gz"
 fi
@@ -40,7 +45,7 @@ mkdir -p "$APP_DIR" "$DATA_DIR" "$KANJISVG_DIR"
 msg_ok "Directories ready"
 
 msg_info "Downloading release"
-fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "prebuild" "$APP_TAG" "$APP_DIR" "$APP_ASSET"
+fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "prebuild" "$APP_TAG_FETCH" "$APP_DIR" "$APP_ASSET"
 msg_ok "Release installed"
 
 msg_info "Installing production dependencies"

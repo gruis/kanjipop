@@ -44,7 +44,8 @@ cat > app-version.json <<EOF
 EOF
 
 echo "==> Packaging"
+export COPYFILE_DISABLE=1
 mkdir -p "$DIST_DIR"
-tar -czf "$TARBALL" .output package.json package-lock.json public app-version.json
+tar --no-xattrs -czf "$TARBALL" .output package.json package-lock.json public app-version.json
 
 echo "==> Done: ${TARBALL}"
