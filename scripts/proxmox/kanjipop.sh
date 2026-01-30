@@ -102,8 +102,11 @@ function update_script() {
 if declare -f build_container >/dev/null 2>&1; then
   INSTALL_WITH_CACHE="${INSTALL_SCRIPT_URL}?cb=${CACHE_BUSTER}"
   build_container_src="$(declare -f build_container)"
-  build_container_src="${build_container_src//https:\/\/raw.githubusercontent.com\/community-scripts\/ProxmoxVE\/main\/install\/\${var_install}.sh/${INSTALL_WITH_CACHE}}"
-  eval "$build_container_src"
+  BUILD_INSTALL_URL="https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/install/\${var_install}.sh"
+  build_container_src="${build_container_src//$BUILD_INSTALL_URL/$INSTALL_WITH_CACHE}"
+  tmp_func="/tmp/kanjipop_build_container.sh"
+  printf '%s\n' "$build_container_src" >"$tmp_func"
+  source "$tmp_func"
 fi
 
 start
