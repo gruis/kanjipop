@@ -26,21 +26,3 @@ cp -R /tmp/kanjivg/kanjivg/kanji public/kanjisvg/kanji
 
 Sanity check:
 - `public/kanjisvg/kanji/08a9e.svg` should exist for 語.
-
-## Proxmox LXC Install
-See `docs/DEPLOYMENT.md` for the community-scripts style installer.
-
-## Release Packaging
-Use:
-```bash
-./scripts/release/package-release.sh v1.0.0
-./scripts/release/create-release.sh v1.0.0
-```
-
-This generates `dist/kanjipop-v1.0.0.tar.gz` and publishes a GitHub Release asset.
-
-## Proxmox One‑Liner (LXC)
-```bash
-export APP_TAG="v1.0.0"
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop.sh)"
-```
