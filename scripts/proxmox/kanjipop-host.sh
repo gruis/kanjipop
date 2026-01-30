@@ -13,6 +13,7 @@ set -euo pipefail
 #   ./scripts/proxmox/kanjipop-host.sh logs
 #   ./scripts/proxmox/kanjipop-host.sh update
 #   ./scripts/proxmox/kanjipop-host.sh uninstall
+#   ./scripts/proxmox/kanjipop-host.sh backup
 
 CT_ID="${CT_ID:-}"
 CT_HOSTNAME="${CT_HOSTNAME:-kanjipop}"
@@ -20,6 +21,8 @@ APP_REPO="${APP_REPO:-gruis/kanjipop}"
 APP_ASSET="${APP_ASSET:-}"
 PRESERVE_DATA="${PRESERVE_DATA:-yes}"
 PRESERVE_KANJISVG="${PRESERVE_KANJISVG:-yes}"
+BACKUP_DIR="${BACKUP_DIR:-/var/lib/kanjipop/backups}"
+RETAIN="${RETAIN:-10}"
 
 cmd="${1:-}"
 arg_ct="${2:-}"
@@ -84,6 +87,16 @@ case "$cmd" in
     fi
     pct exec "$CT_ID" -- bash -lc "export FUNCTIONS_FILE_PATH=\"\$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)\"; export APP_REPO='$APP_REPO'; export APP_ASSET='$APP_ASSET'; bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${APP_REPO}/main/scripts/proxmox/kanjipop-update.sh?cb=$(date +%s))\""
     ;;
+  backup)
+    pct exec "$CT_ID" -- sqlite3 /opt/kanjipop/data/db/kanji-cache.sqlite ".backup '/opt/kanjipop/data/db/kanji-cache.sqlite.bak'"
+    mkdir -p "$BACKUP_DIR"
+    cp -a /var/lib/kanjipop/data/db/kanji-cache.sqlite.bak "$BACKUP_DIR/kanji-cache-$(date +%F-%H%M%S).sqlite"
+    pct exec "$CT_ID" -- rm -f /opt/kanjipop/data/db/kanji-cache.sqlite.bak
+    if [[ "$RETAIN" -gt 0 ]]; then
+      ls -1t "$BACKUP_DIR"/kanji-cache-*.sqlite 2>/dev/null | tail -n +"$((RETAIN + 1))" | xargs -r rm -f
+    fi
+    echo "Backup complete in $BACKUP_DIR"
+    ;;
   uninstall)
     if [[ -z "$APP_REPO" ]]; then
       echo "APP_REPO is required for uninstall."
@@ -92,7 +105,7 @@ case "$cmd" in
     pct exec "$CT_ID" -- bash -lc "export FUNCTIONS_FILE_PATH=\"\$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)\"; export PRESERVE_DATA='$PRESERVE_DATA'; export PRESERVE_KANJISVG='$PRESERVE_KANJISVG'; bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/${APP_REPO}/main/scripts/proxmox/kanjipop-uninstall.sh?cb=$(date +%s))\""
     ;;
   *)
-    echo "Usage: $0 {status|start|stop|restart|logs|update|uninstall}"
+    echo "Usage: $0 {status|start|stop|restart|logs|update|backup|uninstall}"
     exit 1
     ;;
 esac

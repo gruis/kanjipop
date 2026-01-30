@@ -1,5 +1,25 @@
 # Deployment Plan (Proxmox + Docker + Caddy)
 
+## TL;DR:
+```
+  1. Commit changes
+  git add -A
+  git commit -m "Release prep"
+
+  2. Tag + push
+  git tag -a v0.1.1 -m "v0.1.1"
+  git push origin main v0.1.1
+
+  3. Build release asset
+  ./scripts/release/package-release.sh v0.1.1
+
+  4. Create GitHub release (uploads asset)
+  ./scripts/release/create-release.sh v0.1.1
+  
+  5. Update container in place
+  bash -c "$(curl -fsSL 'https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh?cb='$(date +%s))" -- update
+```
+
 ## Goals
 - Run the Nuxt app in a container on Proxmox.
 - Use SQLite on a persistent volume.
@@ -65,7 +85,24 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scri
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" restart
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" logs
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" update
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" backup
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" uninstall
+```
+
+### Backups (SQLite-safe)
+Host helper command:
+```
+export BACKUP_DIR="/var/lib/kanjipop/backups"
+export RETAIN=10
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" backup
+```
+
+Standalone backup script (host-side):
+```
+export CT_ID=123
+export BACKUP_DIR="/var/lib/kanjipop/backups"
+export RETAIN=10
+./scripts/proxmox/kanjipop-backup.sh
 ```
 
 If auto-detection by hostname fails, you can pass the container ID as the second argument:
