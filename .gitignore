@@ -1,19 +1,25 @@
 # dependencies
 node_modules/
-.nuxt
+
+# Nuxt
+.nuxt/
+.output/
 
 # build/output
 out/
 
-data
+# local data
+/data/
+/data/db/
+/public/kanjisvg/
 
-# local data assets
-data/kanjivg/
+# release artifacts
+/dist/
+app-version.json
 
 # logs
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 
 # OS
 .DS_Store

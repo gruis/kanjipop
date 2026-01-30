@@ -1,41 +1,49 @@
-# Agent.md — Kanji Prompt Builder (Node → Offline HTML)
+# Agent.md — KanjiPop (Nuxt + SQLite + SRS)
 
 ## Purpose
-Build a small, reliable workflow for kanji handwriting practice from a user-supplied list of kanji (or pasted Japanese text), generating an **offline HTML page** with:
-- readings + meaning (prompt)
-- “Reveal” section showing the kanji
-- stroke order diagram (SVG) using **KanjiVG** (offline, deterministic)
-- a few example sentences pulled via `unofficial-jisho-api`
+Build a local-first Kanji study web app with spaced repetition, decks, and offline stroke order (KanjiVG), with:
+- front/back card flow for handwriting practice
+- readings/meanings/examples on front
+- stroke order + compounds + mnemonics on back
+- per-user progress (multi-user)
+- admin-managed shared content
 
-Primary goal: **prompt → write with pencil/stylus on paper/tablet → reveal → self-check**.
-
-Secondary goal: keep the toolchain **local-first**, reproducible, and easy to extend.
+Primary goal: **prompt → write → reveal → self-check** with SRS scheduling.
+Secondary goals: local-first data, reproducible installs, Proxmox-friendly deployment.
 
 ---
 
 ## Working Agreement / Style
-- Prefer deterministic, offline assets (KanjiVG) over scraping where possible.
-- When relying on scraped sources, treat failures as non-fatal.
-- No “patch instructions” in responses: provide full-file outputs when asked.
-- Keep code readable; add small helper functions rather than clever one-liners.
-- Use ESM (`.mjs`) and Node 18+ assumptions (global `fetch`).
+- Prefer deterministic, offline assets (KanjiVG) over scraping.
+- Jisho/WaniKani lookups are best-effort; failures must not crash runs.
+- Keep code readable; use small helper functions instead of clever one-liners.
+- Use ESM where applicable and Node 18+ assumptions.
+- Server-side data is the source of truth (SQLite under `data/db`).
 
 ---
 
-## Repo Layout (target)
+## Repo Layout (current)
 ```
-kanji-prompt/
-  Agent.md
+kanjipop/
+  Agents.md
+  nuxt.config.ts
   package.json
-  build-kanji-html.mjs
+  server/
+    api/
+    db/
+  pages/
+  lib/
+  public/
+    kanjisvg/
+  scripts/
+    proxmox/
+      kanjipop.sh
+      kanjipop-install.sh
+      kanjipop-update.sh
+      kanjipop-uninstall.sh
+      kanjipop-host.sh
   data/
-    kanjivg/                 # from KanjiVG release zip
-      kanji/
-        08a9e.svg
-  out/
-    kanji-cards.html
-    assets/
-      語_kanjivg.svg
+    db/                # SQLite (server-side)
 ```
 
 ---
@@ -43,89 +51,53 @@ kanji-prompt/
 ## Environment Requirements
 - Node.js >= 18 (Node 20 OK)
 - npm
-- macOS/Linux ok
+- macOS/Linux for dev; Proxmox LXC for deployment
 
-Dependencies:
+Dependencies (important):
 - `unofficial-jisho-api`
-- `cheerio@1.0.0-rc.12` (pinned to avoid ESM default-export mismatch)
+- `cheerio@1.0.0-rc.12`
+- `better-sqlite3`
 
 ---
 
-## One-time Setup (commands)
-Run these exactly:
-
-```bash
-npm init -y
-npm i unofficial-jisho-api
-npm i cheerio@1.0.0-rc.12
-
-mkdir -p data
-cd data
-curl -L -o kanjivg.zip https://github.com/KanjiVG/kanjivg/releases/latest/download/kanjivg.zip
-unzip kanjivg.zip
-cd ..
+## Typical Usage (Dev)
+```
+npm install
+npm run dev
 ```
 
-Sanity check:
-- confirm `data/kanjivg/kanji/08a9e.svg` exists for 語.
-
----
-
-## Typical Usage
-Generate from explicit kanji list:
-```bash
-node build-kanji-html.mjs 語 学 読
-open out/kanji-cards.html
+## Typical Usage (Proxmox LXC install)
 ```
-
-Generate from pasted Japanese text:
-```bash
-node build-kanji-html.mjs --from-text "（paste text here）"
-open out/kanji-cards.html
+export APP_REPO="gruis/kanjipop"
+export APP_TAG="v1.0.0"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop.sh)"
 ```
 
 ---
 
 ## Definition of Done (DoD)
 A run is “done” when:
-1. `out/kanji-cards.html` is created
-2. For each kanji:
-   - readings + meaning shown on the card
-   - Reveal shows the kanji
-   - Stroke SVG shows if KanjiVG has it
-   - Example sentences appear when available
-3. Failures (missing examples, missing kanji) do not crash the run; they show an error block per kanji.
+1. The app boots and shows decks/cards.
+2. SRS review works per user.
+3. Cards show readings/meaning/examples on front.
+4. Back shows stroke order, compounds, mnemonics.
+5. Missing data is non-fatal (error block per card).
 
 ---
 
-## Current Known Issues / Constraints
-- `unofficial-jisho-api` is not an official API and may break if Jisho changes.
-- Example sentence results can be sparse for single-kanji queries.
-- KanjiVG covers kanji well, but not all non-kanji characters.
-- We do not do handwriting evaluation (that’s a separate future project).
-
----
-
-## Roadmap (next improvements)
-### UX / Study Flow
-- Add “quiz mode” toggle:
-  - hide meaning until reveal
-  - show only reading prompt
-  - optional “example hint” hidden behind a second toggle
-
-### Data / Quality
-- Allow manual override file for example sentences
-- Add furigana rendering support
-- Cache Jisho responses locally to reduce repeat scraping
-
-### Output Formats
-- Per-kanji individual card pages
-- Dark mode stylesheet
+## Current Constraints
+- `unofficial-jisho-api` can break if Jisho changes.
+- Example sentence results can be sparse.
+- KanjiVG covers kanji, not all non-kanji characters.
+- Multi-user sync across devices is not implemented yet.
 
 ---
 
 ## Agent Behavior Guidelines
 When acting as a coding agent in this repo:
 
-1. Maintain offline-first stroke order using KanjiVG.
-2. Treat Jisho lookups as best-effort; never make the script crash if they fail.
+1. Keep data server-side in SQLite; avoid browser storage.
+2. Maintain offline-first stroke order using KanjiVG.
+3. Treat Jisho/WaniKani lookups as best-effort.
+4. Avoid god functions; keep modules small and maintainable.
+5. When asked for code updates, return full-file outputs only if explicitly requested.

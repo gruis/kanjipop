@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+# Copyright (c) 2021-2026 community-scripts ORG
+# License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
+
+source /dev/stdin <<<"$FUNCTIONS_FILE_PATH"
+color
+verb_ip6
+catch_errors
+setting_up_container
+network_check
+update_os
+
+APP_REPO="${APP_REPO:-gruis/kanjipop}"
+APP_TAG="${APP_TAG:-}"
+APP_ASSET="${APP_ASSET:-}"
+APP_DIR="${APP_DIR:-/opt/kanjipop}"
+VERSION_FILE="${VERSION_FILE:-/opt/kanjipop_version.txt}"
+
+if [[ -z "$APP_REPO" ]]; then
+  msg_error "APP_REPO is required."
+  exit 1
+fi
+
+if [[ ! -d "$APP_DIR/.output" && ! -f "$VERSION_FILE" ]]; then
+  msg_error "No KanjiPop installation found."
+  exit 1
+fi
+
+NODE_VERSION="20" NODE_MODULE="npm" setup_nodejs
+RELEASE=$(get_latest_github_release "$APP_REPO")
+CURRENT_VERSION=""
+[[ -f "$VERSION_FILE" ]] && CURRENT_VERSION=$(cat "$VERSION_FILE")
+
+if [[ "$CURRENT_VERSION" != "$RELEASE" ]]; then
+  msg_info "Stopping Service"
+  systemctl stop kanjipop
+  msg_ok "Stopped Service"
+
+  msg_info "Updating KanjiPop to ${RELEASE}"
+  export APP_TAG="$RELEASE"
+  export APP_ASSET="${APP_ASSET:-kanjipop-${RELEASE}.tar.gz}"
+  CLEAN_INSTALL=1 fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "tarball"
+
+  msg_info "Installing production dependencies"
+  cd "$APP_DIR"
+  $STD npm ci --omit=dev
+  echo "$RELEASE" >"$VERSION_FILE"
+  msg_ok "Updated KanjiPop"
+
+  msg_info "Starting Service"
+  systemctl start kanjipop
+  msg_ok "Started Service"
+  msg_ok "Updated successfully!"
+else
+  msg_ok "No update required. KanjiPop is already at ${RELEASE}"
+fi

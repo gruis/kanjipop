@@ -4,8 +4,6 @@ const me = ref<{ id: string; role: string } | null>(null);
 const users = ref<Array<{ id: string; email?: string; role: string; kind: string; displayName?: string; disabled: number; createdAt: number }>>([]);
 const message = ref("");
 const loading = ref(false);
-const resetMessage = ref("");
-const resetting = ref(false);
 
 const adultEmail = ref("");
 const adultPassword = ref("");
@@ -80,22 +78,6 @@ const toggleDisabled = async (userId: string, disabled: boolean) => {
     body: { disabled },
   });
   await loadUsers();
-};
-
-const onReset = async () => {
-  if (!confirm("Reset server data and reseed kanji lists? This cannot be undone.")) {
-    return;
-  }
-  resetting.value = true;
-  resetMessage.value = "";
-  try {
-    await $fetch("/api/admin/reset", { method: "POST" });
-    resetMessage.value = "Server data reset and reseeded.";
-  } catch (err: any) {
-    resetMessage.value = err?.data?.error || String(err);
-  } finally {
-    resetting.value = false;
-  }
 };
 
 onMounted(async () => {
@@ -200,21 +182,6 @@ onMounted(async () => {
               </table>
             </div>
             <p v-if="message" class="text-danger mb-0">{{ message }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12">
-        <div class="card border-danger">
-          <div class="card-body">
-            <h2 class="h5 text-danger">Reset & Reseed</h2>
-            <p class="text-muted">
-              This clears all server-side progress and reseeds the kanji lists. This cannot be undone.
-            </p>
-            <button class="btn btn-danger" :disabled="resetting" @click="onReset">
-              {{ resetting ? "Resetting..." : "Reset & Reseed" }}
-            </button>
-            <p v-if="resetMessage" class="mt-2 mb-0">{{ resetMessage }}</p>
           </div>
         </div>
       </div>

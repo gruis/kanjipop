@@ -3,7 +3,7 @@ export default defineNuxtConfig({
   css: ["bootstrap/dist/css/bootstrap.min.css"],
   app: {
     head: {
-      title: "Kanji SRS",
+      title: "KanjiPop",
       meta: [{ name: "viewport", content: "width=device-width, initial-scale=1" }],
     },
   },

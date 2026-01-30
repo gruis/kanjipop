@@ -1,0 +1,4 @@
+kanji.example.com {
+  encode gzip
+  reverse_proxy localhost:3000
+}

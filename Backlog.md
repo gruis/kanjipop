@@ -31,3 +31,7 @@
 - [ ] Exploration: per-grade reading availability (limit which readings appear by level)
 - [ ] Improve Admin Decks drag-and-drop on iPad (touch-friendly DnD)
 - [ ] Upcoming list: buckets based on days in the future when cards will be ready for review with counts for each bucket
+
+## Gamification (Rewards for Kids)
+- [ ] Pokemon collection
+- [ ] Large character image that is revealed one square at a time as learning progresses
