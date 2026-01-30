@@ -17,6 +17,10 @@
 - Use `scripts/proxmox/kanjipop.sh` (ct script) and `scripts/proxmox/kanjipop-install.sh` (install script).
 - It pulls a prebuilt GitHub Release asset tar.gz, installs Node, downloads KanjiVG, and creates a systemd service.
 - Requires: `APP_REPO` and `APP_TAG` env vars.
+- Persistent host mounts (required):
+  - `HOST_DATA_DIR` → `/opt/kanjipop/data/db` (SQLite, SRS progress)
+  - `HOST_KANJISVG_DIR` → `/opt/kanjipop/public/kanjisvg` (KanjiVG assets)
+  - Defaults: `/var/lib/kanjipop/data/db` and `/var/lib/kanjipop/kanjisvg`
 
 One-line install (no repo on host):
 ```

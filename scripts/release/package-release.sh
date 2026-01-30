@@ -22,6 +22,8 @@ TARBALL="${DIST_DIR}/kanjipop-${TAG}.tar.gz"
 
 cd "$ROOT_DIR"
 
+GIT_DESCRIBE="$(git describe --tags --always 2>/dev/null || echo "$TAG")"
+
 echo "==> Setting package version to ${VERSION}"
 npm version --no-git-tag-version "$VERSION"
 
@@ -32,7 +34,6 @@ echo "==> Building"
 npm run build
 
 echo "==> Writing app-version.json"
-GIT_DESCRIBE="$(git describe --tags --always --dirty 2>/dev/null || echo \"$TAG\")"
 BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 cat > app-version.json <<EOF
 {
