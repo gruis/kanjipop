@@ -1,3 +1,8 @@
+const allowedHosts = (process.env.NUXT_ALLOWED_HOSTS ?? "")
+  .split(",")
+  .map((host) => host.trim())
+  .filter(Boolean);
+
 export default defineNuxtConfig({
   compatibilityDate: "2026-01-28",
   css: ["bootstrap/dist/css/bootstrap.min.css"],
@@ -16,7 +21,7 @@ export default defineNuxtConfig({
   },
   vite: {
     server: {
-      allowedHosts: ["d32bba38db87.ngrok-free.app"],
+      allowedHosts: allowedHosts.length > 0 ? allowedHosts : "all",
     },
   },
 });

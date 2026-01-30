@@ -5,7 +5,7 @@ source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxV
 # Source: https://github.com/community-scripts/ProxmoxVE
 
 APP="KanjiPop"
-var_tags="${var_tags:-education}"
+var_tags="${var_tags:-education;kanjipop}"
 var_cpu="${var_cpu:-2}"
 var_ram="${var_ram:-2048}"
 var_disk="${var_disk:-8}"
@@ -23,6 +23,8 @@ var_unprivileged="${var_unprivileged:-1}"
 #   export APP_DIR="/opt/kanjipop"
 #   export DATA_DIR="/opt/kanjipop/data/db"
 #   export KANJISVG_DIR="/opt/kanjipop/public/kanjisvg"
+#   export HOST_DATA_DIR="/var/lib/kanjipop/data/db"
+#   export HOST_KANJISVG_DIR="/var/lib/kanjipop/kanjisvg"
 #   export INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-install.sh"
 
 export APP_REPO="${APP_REPO:-gruis/kanjipop}"
@@ -32,13 +34,43 @@ export APP_PORT="${APP_PORT:-3000}"
 export APP_DIR="${APP_DIR:-/opt/kanjipop}"
 export DATA_DIR="${DATA_DIR:-/opt/kanjipop/data/db}"
 export KANJISVG_DIR="${KANJISVG_DIR:-/opt/kanjipop/public/kanjisvg}"
+export HOST_DATA_DIR="${HOST_DATA_DIR:-/var/lib/kanjipop/data/db}"
+export HOST_KANJISVG_DIR="${HOST_KANJISVG_DIR:-/var/lib/kanjipop/kanjisvg}"
 export VERSION_FILE="/opt/kanjipop_version.txt"
-export INSTALL_SCRIPT_URL="${INSTALL_SCRIPT_URL:-}"
+export INSTALL_SCRIPT_URL="${INSTALL_SCRIPT_URL:-https://raw.githubusercontent.com/${APP_REPO}/main/scripts/proxmox/kanjipop-install.sh}"
+export CACHE_BUSTER="${CACHE_BUSTER:-}"
+if [[ -z "$CACHE_BUSTER" ]]; then
+  CACHE_BUSTER="$(date +%s)"
+fi
 
 header_info "$APP"
 variables
 color
 catch_errors
+
+# Ensure persistent mounts are applied immediately after container creation.
+if declare -f create_lxc_container >/dev/null 2>&1; then
+  create_src="$(declare -f create_lxc_container)"
+  create_src="${create_src/create_lxc_container/create_lxc_container_original}"
+  eval "$create_src"
+  create_lxc_container() {
+    create_lxc_container_original "$@"
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+      return $rc
+    fi
+    msg_info "Configuring persistent mounts"
+    mkdir -p "$HOST_DATA_DIR" "$HOST_KANJISVG_DIR"
+    if [[ "${CT_TYPE:-1}" == "1" ]]; then
+      chown -R 100000:100000 "$HOST_DATA_DIR" "$HOST_KANJISVG_DIR"
+    else
+      chown -R 0:0 "$HOST_DATA_DIR" "$HOST_KANJISVG_DIR"
+    fi
+    pct set "$CTID" -mp0 "${HOST_DATA_DIR},mp=${DATA_DIR}"
+    pct set "$CTID" -mp1 "${HOST_KANJISVG_DIR},mp=${KANJISVG_DIR}"
+    msg_ok "Persistent mounts set"
+  }
+fi
 
 if [[ -z "$APP_TAG" ]]; then
   msg_error "APP_TAG is required."
@@ -72,8 +104,12 @@ function update_script() {
 
     msg_info "Updating ${APP} to ${RELEASE}"
     export APP_TAG="$RELEASE"
+    RELEASE_FETCH="$RELEASE"
+    if [[ "$RELEASE_FETCH" != v* ]]; then
+      RELEASE_FETCH="v${RELEASE_FETCH}"
+    fi
     export APP_ASSET="${APP_ASSET:-kanjipop-${RELEASE}.tar.gz}"
-    CLEAN_INSTALL=1 fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "tarball"
+    CLEAN_INSTALL=1 fetch_and_deploy_gh_release "kanjipop" "$APP_REPO" "prebuild" "$RELEASE_FETCH" "$APP_DIR" "$APP_ASSET"
     cd "$APP_DIR"
     npm ci --omit=dev
     echo "$RELEASE" >"$VERSION_FILE"
@@ -89,31 +125,17 @@ function update_script() {
   exit
 }
 
-function install_script() {
-  # This overrides build.func's install_script to pull our installer from this repo.
-  if [[ -z "$INSTALL_SCRIPT_URL" ]]; then
-    msg_error "INSTALL_SCRIPT_URL is required."
-    exit 1
-  fi
-
-  if command -v curl >/dev/null 2>&1; then
-    export FUNCTIONS_FILE_PATH="$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)"
-  else
-    export FUNCTIONS_FILE_PATH="$(wget -qO- https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)"
-  fi
-
-  export INSTALL_LOG="/root/.install-${SESSION_ID}.log"
-  export APP_REPO APP_TAG APP_ASSET APP_PORT APP_DIR DATA_DIR KANJISVG_DIR VERSION_FILE
-
-  # Install base packages inside container
-  pct exec "$CTID" -- bash -c "apt-get update >/dev/null && apt-get install -y sudo curl mc gnupg2 jq >/dev/null" || {
-    msg_error "apt-get base packages installation failed"
-    exit 1
-  }
-
-  # Run application installer inside container
-  lxc-attach -n "$CTID" -- bash -c "$(curl -fsSL "$INSTALL_SCRIPT_URL")"
-}
+# Patch build_container to use our installer URL while keeping the standard
+# community-scripts creation flow (auto CTID, menus, etc.).
+if declare -f build_container >/dev/null 2>&1; then
+  INSTALL_WITH_CACHE="${INSTALL_SCRIPT_URL}?cb=${CACHE_BUSTER}"
+  build_container_src="$(declare -f build_container)"
+  BUILD_INSTALL_URL="https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/install/\${var_install}.sh"
+  build_container_src="${build_container_src//$BUILD_INSTALL_URL/$INSTALL_WITH_CACHE}"
+  tmp_func="/tmp/kanjipop_build_container.sh"
+  printf '%s\n' "$build_container_src" >"$tmp_func"
+  source "$tmp_func"
+fi
 
 start
 build_container

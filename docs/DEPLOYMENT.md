@@ -15,8 +15,12 @@
 ## Proxmox LXC (no Docker) Option
 ### Community-scripts style (recommended)
 - Use `scripts/proxmox/kanjipop.sh` (ct script) and `scripts/proxmox/kanjipop-install.sh` (install script).
-- It pulls a prebuilt GitHub Release tar.gz, installs Node, downloads KanjiVG, and creates a systemd service.
+- It pulls a prebuilt GitHub Release asset tar.gz, installs Node, downloads KanjiVG, and creates a systemd service.
 - Requires: `APP_REPO` and `APP_TAG` env vars.
+- Persistent host mounts (required):
+  - `HOST_DATA_DIR` → `/opt/kanjipop/data/db` (SQLite, SRS progress)
+  - `HOST_KANJISVG_DIR` → `/opt/kanjipop/public/kanjisvg` (KanjiVG assets)
+  - Defaults: `/var/lib/kanjipop/data/db` and `/var/lib/kanjipop/kanjisvg`
 
 One-line install (no repo on host):
 ```
@@ -48,8 +52,8 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scri
 
 ### Unified host helper (recommended)
 ```
-export CT_ID=123
 export APP_REPO="gruis/kanjipop"
+export CT_HOSTNAME="kanjipop" # optional override
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" status
 ```
 
@@ -64,7 +68,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scri
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" uninstall
 ```
 
-You can also pass the container ID as the second argument:
+If auto-detection by hostname fails, you can pass the container ID as the second argument:
 ```
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop-host.sh)" status 123
 ```
@@ -107,10 +111,20 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scri
 - Optional: snapshot container volume in Proxmox.
 
 ## GitHub Release Setup (quick)
-0) Create a tag:
-   - `git tag v1.0.0 && git push origin v1.0.0`
-1) Build and package on your dev machine:
-   - `./scripts/release/package-release.sh v1.0.0`
-2) Create a GitHub Release and upload the tarball as an asset.
-   - `./scripts/release/create-release.sh v1.0.0`
-3) Use `APP_TAG=v1.0.0` (and `APP_ASSET=kanjipop-v1.0.0.tar.gz` if you want to be explicit).
+0) Commit your changes and push to `main`.
+1) Create an annotated tag and push it:
+   - `git tag -a v0.1.0-rc1 -m "v0.1.0-rc1"`
+   - `git push origin v0.1.0-rc1`
+2) Build and package on your dev machine:
+   - `./scripts/release/package-release.sh v0.1.0-rc1`
+3) Create a GitHub Release and upload the tarball as an asset:
+   - `./scripts/release/create-release.sh v0.1.0-rc1`
+4) Deploy with `APP_TAG=v0.1.0-rc1` (and `APP_ASSET=kanjipop-v0.1.0-rc1.tar.gz` if you want to be explicit).
+
+If you need to move a tag to a newer commit:
+```
+git tag -d v0.1.0-rc1
+git push --delete origin v0.1.0-rc1
+git tag -a v0.1.0-rc1 -m "v0.1.0-rc1"
+git push origin v0.1.0-rc1
+```
