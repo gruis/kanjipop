@@ -1,0 +1,21 @@
+app = "kanjipop"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NITRO_HOST = "0.0.0.0"
+  NITRO_PORT = "3000"
+  COOKIE_SECURE = "true"
+
+[mounts]
+  source = "kanjipop_data"
+  destination = "/app/data/db"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_start_machines = true
+  auto_stop_machines = false
+  min_machines_running = 1
