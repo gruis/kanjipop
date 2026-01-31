@@ -35,3 +35,15 @@
 ## Gamification (Rewards for Kids)
 - [ ] Pokemon collection
 - [ ] Large character image that is revealed one square at a time as learning progresses
+
+
+## Uncategorized
+- [ ] If the user is in reviews and refreshes the page they should be brought back to the same place in the review order
+- [ ] Provide an indication of progress through the review
+- [ ] Example sentences for Kids
+- [ ] Example sentences for Schools grades should be targeted at people of that age
+- [ ] Dynamically construct sentences containing kanji and compounds that have already been learned
+- [ ] From dashboard, when clicking on "Start Review" should be taken to the deck they were reviewing last, or the lowest level deck that has reviews to do. 
+- [ ] User should be able to set their preferred, or prioritized taxonomy instead of just defaulting to school for kids and JLPT for adults
+- [ ] Adults should be able to create accounts for their kids and should see the kids in their "Family" list. They should get an indication of their family member's progress
+- [ ] Consider gamification between family members
