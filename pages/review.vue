@@ -21,6 +21,9 @@ import { fetchDecks, type DeckSummary } from "~/lib/services/decksApi";
 
 const route = useRoute();
 const router = useRouter();
+const userState = useState<{ id: string; email?: string; role?: string; kind?: string; displayName?: string } | null>(
+  "currentUser"
+);
 
 const loading = ref(true);
 const currentCard = ref<Card | null>(null);
@@ -40,12 +43,22 @@ const selectedTaxonomy = ref<"jlpt" | "grade" | "custom">("jlpt");
 const selectedLevel = ref<string>("N5");
 const decks = ref<DeckSummary[]>([]);
 const selectedDeckId = ref<string>("");
+const preferences = ref<{
+  lastTaxonomy?: "jlpt" | "grade" | "custom" | null;
+  lastLevel?: string | null;
+  lastDeckId?: string | null;
+} | null>(null);
 
 const levelTag = computed(() => `${selectedTaxonomy.value}:${selectedLevel.value}`);
 
 const levelsForTaxonomy = computed(() =>
   levelOptions.filter((lvl) => lvl.taxonomy === selectedTaxonomy.value)
 );
+
+const isValidLevel = (taxonomy: "jlpt" | "grade", levelId: string) =>
+  levelOptions.some((lvl) => lvl.taxonomy === taxonomy && lvl.id === levelId);
+
+const resolveDeckId = (deckId: string) => decks.value.find((deck) => deck.id === deckId)?.id || "";
 
 const extractKanji = (term: string) =>
   Array.from(term).filter((char) => /[\u3400-\u4DBF\u4E00-\u9FFF]/.test(char));
@@ -196,7 +209,13 @@ const onGrade = async (grade: Grade) => {
   try {
     await $fetch("/api/review/grade", {
       method: "POST",
-      body: { cardId: currentCard.value.id, grade },
+      body: {
+        cardId: currentCard.value.id,
+        grade,
+        taxonomy: selectedTaxonomy.value,
+        level: selectedTaxonomy.value === "custom" ? null : selectedLevel.value,
+        deckId: selectedTaxonomy.value === "custom" ? selectedDeckId.value : null,
+      },
     });
     await loadNext();
   } catch (err) {
@@ -221,9 +240,10 @@ watch(
   async () => {
     if (selectedTaxonomy.value !== "custom") return;
     decks.value = await fetchDecks();
-    if (!selectedDeckId.value && decks.value.length > 0) {
-      selectedDeckId.value = decks.value[0].id;
-    }
+    const preferredDeckId =
+      preferences.value?.lastTaxonomy === "custom" ? preferences.value?.lastDeckId || "" : "";
+    const resolved = resolveDeckId(selectedDeckId.value) || resolveDeckId(preferredDeckId);
+    selectedDeckId.value = resolved || decks.value[0]?.id || "";
     await loadNext();
   }
 );
@@ -236,20 +256,48 @@ onMounted(async () => {
   }
   await $fetch("/api/cards/seed");
   decks.value = await fetchDecks();
+  try {
+    const res = await $fetch<{ preferences: typeof preferences.value }>("/api/user/preferences");
+    preferences.value = res.preferences || null;
+  } catch {
+    preferences.value = null;
+  }
 
   const requestedTaxonomy = typeof route.query.taxonomy === "string" ? route.query.taxonomy : "";
   const requestedDeckId = typeof route.query.deckId === "string" ? route.query.deckId : "";
   const requestedLevel = typeof route.query.level === "string" ? route.query.level : "";
 
-  if (requestedTaxonomy === "custom") {
-    selectedTaxonomy.value = "custom";
-    if (requestedDeckId) selectedDeckId.value = requestedDeckId;
-  } else if (requestedTaxonomy === "jlpt" || requestedTaxonomy === "grade") {
+  const preferredTaxonomy =
+    preferences.value?.lastTaxonomy === "jlpt" ||
+    preferences.value?.lastTaxonomy === "grade" ||
+    preferences.value?.lastTaxonomy === "custom"
+      ? preferences.value.lastTaxonomy
+      : null;
+  if (requestedTaxonomy === "custom" || requestedTaxonomy === "jlpt" || requestedTaxonomy === "grade") {
     selectedTaxonomy.value = requestedTaxonomy;
-    if (requestedLevel) selectedLevel.value = requestedLevel;
+  } else if (preferredTaxonomy) {
+    selectedTaxonomy.value = preferredTaxonomy;
+  } else if (userState.value?.kind === "kid") {
+    selectedTaxonomy.value = "grade";
+  } else {
+    selectedTaxonomy.value = "jlpt";
   }
 
-  if (!selectedDeckId.value && decks.value.length > 0) selectedDeckId.value = decks.value[0].id;
+  if (selectedTaxonomy.value === "custom") {
+    const preferredDeckId =
+      preferences.value?.lastTaxonomy === "custom" ? preferences.value?.lastDeckId || "" : "";
+    const resolved = resolveDeckId(requestedDeckId) || resolveDeckId(preferredDeckId);
+    selectedDeckId.value = resolved || decks.value[0]?.id || "";
+  } else if (selectedTaxonomy.value === "jlpt" || selectedTaxonomy.value === "grade") {
+    const preferredLevel =
+      preferences.value?.lastTaxonomy === selectedTaxonomy.value ? preferences.value?.lastLevel || "" : "";
+    if (requestedLevel && isValidLevel(selectedTaxonomy.value, requestedLevel)) {
+      selectedLevel.value = requestedLevel;
+    } else if (preferredLevel && isValidLevel(selectedTaxonomy.value, preferredLevel)) {
+      selectedLevel.value = preferredLevel;
+    }
+  }
+
   await loadNext();
 });
 </script>

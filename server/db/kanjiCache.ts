@@ -133,6 +133,14 @@ const ensureDb = () => {
       updatedAt INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      userId TEXT PRIMARY KEY,
+      lastTaxonomy TEXT,
+      lastLevel TEXT,
+      lastDeckId TEXT,
+      updatedAt INTEGER
+    );
+
     CREATE TABLE IF NOT EXISTS mnemonics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       userId TEXT,

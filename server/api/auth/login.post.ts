@@ -3,6 +3,7 @@ import { getDb } from "~/server/db/kanjiCache";
 import { verifySecret, makeSessionId } from "~/server/utils/auth";
 
 const SESSION_DAYS = 30;
+const COOKIE_SECURE = (process.env.COOKIE_SECURE ?? "").toLowerCase() === "true";
 
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) as {
@@ -44,7 +45,7 @@ export default defineEventHandler(async (event) => {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
-      secure: false,
+      secure: COOKIE_SECURE,
       maxAge: SESSION_DAYS * 24 * 60 * 60,
     });
 
@@ -88,7 +89,7 @@ export default defineEventHandler(async (event) => {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
-      secure: false,
+      secure: COOKIE_SECURE,
       maxAge: SESSION_DAYS * 24 * 60 * 60,
     });
 
