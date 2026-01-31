@@ -24,7 +24,10 @@ COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/scripts ./scripts
+
+RUN chmod +x /app/scripts/start.sh
 
 EXPOSE 3000
 
-CMD ["node", ".output/server/index.mjs"]
+CMD ["/app/scripts/start.sh"]

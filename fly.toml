@@ -16,7 +16,7 @@ primary_region = 'nrt'
 
 [mounts]
   source = "kanjipop_data"
-  destination = "/app/data/db"
+  destination = "/app/data"
 
 [http_service]
   internal_port = 3000
