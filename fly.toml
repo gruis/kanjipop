@@ -13,6 +13,7 @@ primary_region = 'nrt'
   NITRO_HOST = "0.0.0.0"
   NITRO_PORT = "3000"
   COOKIE_SECURE = "true"
+  FORCE_HTTPS = "true"
 
 [mounts]
   source = "kanjipop_data"
