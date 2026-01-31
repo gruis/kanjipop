@@ -9,7 +9,7 @@ Build a local-first Kanji study web app with spaced repetition, decks, and offli
 - admin-managed shared content
 
 Primary goal: **prompt → write → reveal → self-check** with SRS scheduling.
-Secondary goals: local-first data, reproducible installs, Proxmox-friendly deployment.
+Secondary goals: local-first data, reproducible installs, Fly.io-friendly deployment.
 
 ---
 
@@ -35,13 +35,9 @@ kanjipop/
   lib/
   public/
     kanjisvg/
+  fly.toml
   scripts/
-    proxmox/
-      kanjipop.sh
-      kanjipop-install.sh
-      kanjipop-update.sh
-      kanjipop-uninstall.sh
-      kanjipop-host.sh
+    start.sh
   data/
     db/                # SQLite (server-side)
 ```
@@ -51,7 +47,7 @@ kanjipop/
 ## Environment Requirements
 - Node.js >= 18 (Node 20 OK)
 - npm
-- macOS/Linux for dev; Proxmox LXC for deployment
+- macOS/Linux for dev; Fly.io for deployment
 
 Dependencies (important):
 - `unofficial-jisho-api`
@@ -66,11 +62,9 @@ npm install
 npm run dev
 ```
 
-## Typical Usage (Proxmox LXC install)
+## Typical Usage (Fly.io deploy)
 ```
-export APP_REPO="gruis/kanjipop"
-export APP_TAG="v1.0.0"
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/gruis/kanjipop/main/scripts/proxmox/kanjipop.sh)"
+flyctl deploy
 ```
 
 ---
