@@ -78,6 +78,15 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-body d-flex flex-column">
+            <h2 class="h5">Prefetch</h2>
+            <p class="text-muted">Fetch kanji data ahead of time.</p>
+            <NuxtLink class="btn btn-outline-primary mt-auto" to="/admin/prefetch">Go to Prefetch</NuxtLink>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="mt-4 text-muted small">

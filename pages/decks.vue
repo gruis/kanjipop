@@ -31,6 +31,11 @@ const creatingDeck = ref(false);
 const deckName = ref("");
 const deckEntries = ref("");
 const deckMessage = ref("");
+const preferences = ref<{
+  lastTaxonomy?: "jlpt" | "grade" | "custom" | null;
+  lastLevel?: string | null;
+  lastDeckId?: string | null;
+} | null>(null);
 
 const editingDeck = ref(false);
 const editDeckName = ref("");
@@ -51,6 +56,8 @@ const canManageSelectedDeck = computed(() => {
   if (isAdmin.value) return deckOwnerId === null;
   return deckOwnerId === userState.value?.id;
 });
+
+const resolveDeckId = (deckId: string) => customDecks.value.find((deck) => deck.id === deckId)?.id || "";
 
 const filteredLevels = computed(() => {
   if (activeTaxonomy.value === "custom") return [];
@@ -296,19 +303,51 @@ const setTaxonomy = async (taxonomy: "jlpt" | "grade" | "custom") => {
 onMounted(async () => {
   await $fetch("/api/cards/seed");
   seeded.value = true;
+  try {
+    const res = await $fetch<{ preferences: typeof preferences.value }>("/api/user/preferences");
+    preferences.value = res.preferences || null;
+  } catch {
+    preferences.value = null;
+  }
   const requestedTaxonomy = typeof route.query.taxonomy === "string" ? route.query.taxonomy : "";
+  const requestedLevel = typeof route.query.level === "string" ? route.query.level : "";
+  const requestedDeckId = typeof route.query.deckId === "string" ? route.query.deckId : "";
+  const preferredTaxonomy =
+    preferences.value?.lastTaxonomy === "jlpt" ||
+    preferences.value?.lastTaxonomy === "grade" ||
+    preferences.value?.lastTaxonomy === "custom"
+      ? preferences.value.lastTaxonomy
+      : null;
   if (requestedTaxonomy === "jlpt" || requestedTaxonomy === "grade" || requestedTaxonomy === "custom") {
     activeTaxonomy.value = requestedTaxonomy;
+  } else if (preferredTaxonomy) {
+    activeTaxonomy.value = preferredTaxonomy;
+  } else if (userState.value?.kind === "kid") {
+    activeTaxonomy.value = "grade";
+  } else {
+    activeTaxonomy.value = "jlpt";
   }
   if (activeTaxonomy.value !== "custom") {
     await loadStandardDecks(activeTaxonomy.value);
-    if (!selectedLevel.value && filteredLevels.value.length > 0) {
-      selectedLevel.value = filteredLevels.value[0].id;
+    const preferredLevel =
+      preferences.value?.lastTaxonomy === activeTaxonomy.value ? preferences.value?.lastLevel || "" : "";
+    if (requestedLevel && levelsForTaxonomy.value.some((lvl) => lvl.id === requestedLevel)) {
+      selectedLevel.value = requestedLevel;
+    } else if (preferredLevel && levelsForTaxonomy.value.some((lvl) => lvl.id === preferredLevel)) {
+      selectedLevel.value = preferredLevel;
+    } else if (!selectedLevel.value && levelsForTaxonomy.value.length > 0) {
+      selectedLevel.value = levelsForTaxonomy.value[0].id;
     }
   }
   await loadDeckStats();
   await loadCustomDeckStats();
   await loadDecks();
+  if (activeTaxonomy.value === "custom") {
+    const preferredDeckId =
+      preferences.value?.lastTaxonomy === "custom" ? preferences.value?.lastDeckId || "" : "";
+    const resolved = resolveDeckId(requestedDeckId) || resolveDeckId(preferredDeckId);
+    if (resolved) selectedDeckId.value = resolved;
+  }
   await loadDeckItems();
   editingDeck.value = false;
   if (selected.value) {

@@ -9,6 +9,8 @@ services:
       NODE_ENV: production
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
+      COOKIE_SECURE: "false"
+      FORCE_HTTPS: "false"
     ports:
       - "3000:3000"
     volumes:

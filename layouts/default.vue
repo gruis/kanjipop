@@ -35,7 +35,7 @@ watch(
 
 <template>
   <div>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav v-if="route.path !== '/login'" class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-fluid">
         <NuxtLink class="navbar-brand d-flex align-items-center gap-2" to="/">
           <img src="/kanjipop_logo.png" alt="KanjiPop" style="height: 32px" />

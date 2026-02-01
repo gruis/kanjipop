@@ -28,6 +28,6 @@
 
 ## Deployment
 - [x] Dockerfile
-- [x] docker-compose.yml
-- [x] Caddyfile
+- [x] fly.toml
+- [x] docker-compose.yml (local self-hosting)
 - [x] Deployment guide

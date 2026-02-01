@@ -133,6 +133,14 @@ const ensureDb = () => {
       updatedAt INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      userId TEXT PRIMARY KEY,
+      lastTaxonomy TEXT,
+      lastLevel TEXT,
+      lastDeckId TEXT,
+      updatedAt INTEGER
+    );
+
     CREATE TABLE IF NOT EXISTS mnemonics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       userId TEXT,
@@ -174,6 +182,20 @@ const ensureDb = () => {
       term TEXT NOT NULL,
       position INTEGER NOT NULL,
       PRIMARY KEY (taxonomy, levelId, term)
+    );
+
+    CREATE TABLE IF NOT EXISTS prefetch_jobs (
+      id TEXT PRIMARY KEY,
+      status TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      total INTEGER NOT NULL,
+      processed INTEGER NOT NULL,
+      failed INTEGER NOT NULL,
+      options TEXT,
+      remaining TEXT,
+      error TEXT,
+      createdAt INTEGER,
+      updatedAt INTEGER
     );
   `);
 
